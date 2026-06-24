@@ -9,7 +9,7 @@ import 'package:oasx/component/log/log_widget.dart';
 import 'package:process_run/shell.dart';
 import 'dart:io';
 import 'package:styled_widget/styled_widget.dart';
-import 'package:code_editor/code_editor.dart';
+// code_editor 已移除，使用原生 TextField 替代
 
 import 'package:oasx/config/translation/i18n_content.dart';
 import 'package:oasx/views/layout/appbar.dart';
@@ -143,25 +143,44 @@ class ServerView extends StatelessWidget {
 
   Widget code(double maxHeight) {
     return GetX<ServerController>(builder: (controller) {
-      FileEditor file = FileEditor(
-        name: "deploy.yaml",
-        language: "yaml",
-        code: controller.deployContent.value, // [code] needs a string
+      final TextEditingController textController = TextEditingController(
+        text: controller.deployContent.value,
       );
-      EditorModel model = EditorModel(
-        files: [file], // the files created above
-        // you can customize the editor as you want
-        styleOptions: EditorModelStyleOptions(
-          heightOfContainer: maxHeight,
-          // theme: githubTheme,
-        ),
-      );
-      return CodeEditor(
-        model: model,
-        formatters: const ["yaml"],
-        onSubmit: (String language, String value) {
-          controller.writeDeploy(value);
-        },
+      return Column(
+        children: [
+          Expanded(
+            child: Container(
+              decoration: BoxDecoration(
+                color: const Color(0xff1e1e1e),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: TextField(
+                controller: textController,
+                maxLines: null,
+                expands: true,
+                style: const TextStyle(
+                  color: Color(0xffd4d4d4),
+                  fontFamily: 'monospace',
+                  fontSize: 14,
+                ),
+                decoration: const InputDecoration(
+                  contentPadding: EdgeInsets.all(12),
+                  border: InputBorder.none,
+                  hintText: '在此编辑 deploy.yaml...',
+                  hintStyle: TextStyle(color: Color(0xff6b6b6b)),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.save),
+            label: const Text('保存'),
+            onPressed: () {
+              controller.writeDeploy(textController.text);
+            },
+          ),
+        ],
       );
     });
   }

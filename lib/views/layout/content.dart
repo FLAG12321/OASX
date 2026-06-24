@@ -20,7 +20,7 @@ Widget content() {
       // 日志菜单入口位置保留：脚本配置切换后默认二级菜单仍是 Overview，
       // 当前改由 Logs / Stats 容器页承接，但不新增 Stats 顶级菜单。
       [String name, 'Overview'] => OverviewLogsStatsView(
-          controller: Get.find(tag: name),
+          scriptName: name,
         ),
       _ => const Args(),
     };

@@ -90,6 +90,7 @@ class Messages extends Translations {
     ..._cn_memory_scrolls_config,
     ..._cn_demon_retreat_config,
     ..._cn_dye_trials_config,
+    ..._cn_multi_stats,
   };
 
   bool translateUpdate(String key, String value, {String locale = 'zh-CN'}) {

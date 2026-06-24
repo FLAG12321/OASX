@@ -19,7 +19,13 @@ part '../../controller/overview/taskitem_model.dart';
 part './taskitem_view.dart';
 
 class Overview extends StatelessWidget {
-  const Overview({Key? key}) : super(key: key);
+  const Overview({Key? key, this.logTopPanelLeading, this.logChild}) : super(key: key);
+
+  // 中文注释：允许外部向日志面板头部注入自定义前导控件，例如 Logs/Stats 切换。
+  final Widget? logTopPanelLeading;
+
+  // 中文注释：允许外部复用日志面板外壳，但切换主体内容区域。
+  final Widget? logChild;
 
   @override
   Widget build(BuildContext context) {
@@ -39,7 +45,9 @@ class Overview extends StatelessWidget {
                   key: ValueKey(overviewController.hashCode),
                   controller: overviewController,
                   title: I18n.log.tr,
-                  enableCollapse: false)
+                  enableCollapse: false,
+                  topPanelLeading: logTopPanelLeading,
+                  child: logChild)
               .constrained(maxHeight: 500)
               .marginOnly(left: 10, top: 10, right: 10)
         ].toColumn(),
@@ -59,7 +67,9 @@ class Overview extends StatelessWidget {
                 key: ValueKey(overviewController.hashCode),
                 controller: overviewController,
                 title: I18n.log.tr,
-                enableCollapse: false)
+                enableCollapse: false,
+                topPanelLeading: logTopPanelLeading,
+                child: logChild)
             .marginOnly(right: 10)
             .expanded()
       ].toRow();

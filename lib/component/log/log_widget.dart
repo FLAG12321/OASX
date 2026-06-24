@@ -13,7 +13,9 @@ class LogWidget extends StatefulWidget {
   final bool? enableAutoScroll;
   final bool? enableClear;
   final bool? enableCollapse;
+  final Widget? topPanelLeading;
   final Widget? topPanelBottomChild;
+  final Widget? child;
 
   const LogWidget({
     super.key,
@@ -23,7 +25,9 @@ class LogWidget extends StatefulWidget {
     this.enableAutoScroll,
     this.enableClear,
     this.enableCollapse,
+    this.topPanelLeading,
     this.topPanelBottomChild,
+    this.child,
   });
 
   @override
@@ -64,15 +68,18 @@ class _LogWidgetState extends State<LogWidget> {
           enableAutoScroll: widget.enableAutoScroll,
           enableClear: widget.enableClear,
           enableCollapse: widget.enableCollapse,
+          leading: widget.topPanelLeading,
           bottomChild: widget.topPanelBottomChild,
         ),
         Obx(() => widget.controller.collapseLog.value
             ? const SizedBox.shrink()
-            : LogContent(
-                controller: widget.controller,
-                scrollController: _scrollController!,
-                onUserScroll: _handleUserScroll,
-              ).expanded()),
+            : (widget.child ??
+                    LogContent(
+                      controller: widget.controller,
+                      scrollController: _scrollController!,
+                      onUserScroll: _handleUserScroll,
+                    ))
+                .expanded()),
       ],
     );
   }
@@ -161,6 +168,7 @@ class TopLogPanel extends StatelessWidget {
   final bool? enableAutoScroll;
   final bool? enableClear;
   final bool? enableCollapse;
+  final Widget? leading;
   final Widget? bottomChild;
 
   const TopLogPanel({
@@ -171,6 +179,7 @@ class TopLogPanel extends StatelessWidget {
     this.enableAutoScroll,
     this.enableClear,
     this.enableCollapse,
+    this.leading,
     this.bottomChild,
   });
 
@@ -183,12 +192,20 @@ class TopLogPanel extends StatelessWidget {
         children: [
           // 顶部按钮控制面板
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(title,
-                  textAlign: TextAlign.left,
-                  style: Theme.of(context).textTheme.titleMedium),
-              const Spacer(),
+              if (leading != null)
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: leading!,
+                  ),
+                )
+              else
+                Expanded(
+                  child: Text(title,
+                      textAlign: TextAlign.left,
+                      style: Theme.of(context).textTheme.titleMedium),
+                ),
               if (enableAutoScroll ?? true) _autoScrollButton(),
               if (enableCopy ?? true) _copyButton(),
               if (enableClear ?? true) _deleteButton(),
