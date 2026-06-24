@@ -252,6 +252,34 @@ class ApiClient {
     return res.isSuccess && res.data == true;
   }
 
+  // 中文注释：首期严格采用 snapshot-first，这里只暴露日期列表与某日快照接口，
+  // 不提前引入 today SSE，避免实现边界漂移。
+  Future<List<String>> getScriptStatisticsDates(String scriptName) async {
+    final path = '/stats/${Uri.encodeComponent(scriptName)}/dates';
+    final res = await request(() => get(path));
+    final rawDates = res.data is Map ? res.data['dates'] : null;
+    return rawDates is List
+        ? rawDates
+            .map((item) => item.toString().trim())
+            .where((item) => item.isNotEmpty)
+            .toList()
+        : <String>[];
+  }
+
+  // 中文注释：首期只读取选中日期的 snapshot 原始数据，后续由 stats 模型层负责解析。
+  Future<Map<String, dynamic>> getScriptStatisticsDayRaw(
+    String scriptName,
+    String dateKey,
+  ) async {
+    final path = '/stats/${Uri.encodeComponent(scriptName)}';
+    final res = await request(
+      () => get(path, queryParameters: {'date': dateKey}),
+    );
+    return res.data is Map
+        ? Map<String, dynamic>.from(res.data as Map)
+        : <String, dynamic>{};
+  }
+
 // ---------------------------------   Snackbar --------------------------------
   void showDialog(String title, String content) {
     Get.snackbar(title, content);

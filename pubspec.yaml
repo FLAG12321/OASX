@@ -38,7 +38,7 @@ dependencies:
   device_preview: ^1.2.0 # 模拟设备进行响应式调试
   responsive_builder: ^0.7.0 # 响应式布局
   styled_widget: ^0.4.1 # 优雅的写UI,扔掉嵌套地狱吧
-  flutter_form_builder: ^9.1.0 # 表单
+  flutter_form_builder: ^10.3.0+2 # 表单
   form_builder_validators: ^11.0.0 # 表单验证
   get_storage: ^2.1.1 # 本地存储
   expansion_tile_group: ^1.2.3 # 多级列表
