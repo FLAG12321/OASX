@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
@@ -30,17 +31,30 @@ void main() {
     GetStorage().remove(StorageKey.autoScriptList.name);
   });
 
-  // 中文注释：锁定 updateAutoScript 的增删与排序，并验证持久化写入
+  // 中文注释：锁定 updateAutoScript 的增删与排序，并验证持久化写入正确内容
   test('updateAutoScript adds, removes and persists sorted list', () async {
     final service = await _buildScriptService();
     service.updateAutoScript('b', true);
     service.updateAutoScript('a', true);
     expect(service.autoScriptList, ['a', 'b']);
+    // 锁定持久化内容为 JSON 数组字符串（避免之前只断言 isNotNull 的弱验证）
     final raw = GetStorage().read(StorageKey.autoScriptList.name);
-    expect(raw, isNotNull);
+    expect(raw, jsonEncode(['a', 'b']));
 
     service.updateAutoScript('a', false);
     expect(service.autoScriptList, ['b']);
+    expect(GetStorage().read(StorageKey.autoScriptList.name), jsonEncode(['b']));
+  });
+
+  // 中文注释：锁定 _loadAutoScriptListFromStorage 兼容历史 JSON 字符串格式
+  test('restore autoScriptList from legacy JSON string', () async {
+    // 模拟历史版本写入的 JSON 字符串
+    await GetStorage().write(
+        StorageKey.autoScriptList.name, jsonEncode(['x', 'y']));
+    final service = await _buildScriptService();
+    // 触发 restore（构造时 onInit 不会跑，手动调用同等价路径）
+    service.restoreAutoScriptListForTest();
+    expect(service.autoScriptList, ['x', 'y']);
   });
 
   // 中文注释：锁定 isRunning 基于 scriptModelMap 状态判断

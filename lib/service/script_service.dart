@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:oasx/api/api_client.dart';
@@ -16,6 +18,13 @@ class ScriptService extends GetxService {
 
   // 自动启动脚本列表（持久化脚本名，应用启动后自动运行）
   final autoScriptList = <String>[].obs;
+
+  // autoRunScript 延迟采样用的计时器，onClose 时取消避免实例销毁后弹旧 snackbar
+  Timer? _autoRunSampleTimer;
+
+  // 从本地存储恢复自动启动脚本列表，兼容历史 List 直存与 JSON 字符串两种格式
+  @visibleForTesting
+  void restoreAutoScriptListForTest() => _loadAutoScriptListFromStorage();
 
   // 从本地存储恢复自动启动脚本列表，兼容历史 List 直存与 JSON 字符串两种格式
   void _loadAutoScriptListFromStorage() {
@@ -80,8 +89,9 @@ class ScriptService extends GetxService {
     final pending = autoScriptList.where((name) => !isRunning(name)).toList();
     if (pending.isEmpty) return;
     await Future.wait(pending.map((name) => startScript(name)));
-    // 延迟采样运行状态判断成功，fire-and-forget 不阻塞调用方
-    Future.delayed(const Duration(seconds: 4), () {
+    // 延迟采样运行状态判断成功，用 Timer 字段持有，onClose 时取消
+    _autoRunSampleTimer?.cancel();
+    _autoRunSampleTimer = Timer(const Duration(seconds: 4), () {
       final ok = autoScriptList.where(isRunning).toList();
       if (ok.isNotEmpty) {
         Get.snackbar(I18n.autoRunScript.tr, '$ok ${I18n.startSuccess.tr}');
@@ -103,6 +113,9 @@ class ScriptService extends GetxService {
 
   @override
   Future<void> onClose() async {
+    // 取消未完成的延迟采样，避免实例销毁后仍弹旧 session 的 snackbar
+    _autoRunSampleTimer?.cancel();
+    _autoRunSampleTimer = null;
     await Future.wait([
       ...scriptModelMap.keys.map((e) => Future.wait([
             stopScript(e),
