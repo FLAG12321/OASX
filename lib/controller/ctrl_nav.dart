@@ -139,6 +139,9 @@ class NavCtrl extends GetxController {
   Future<void> renameConfig(String oldName, String newName) async {
     final int idx = navNameList.indexOf(oldName);
     if (idx == -1) return;
+    // 删旧前先捕获自启标记，deleteScriptModel 会顺带移除自启标记
+    final scriptService = Get.find<ScriptService>();
+    final hadAutoRun = scriptService.autoScriptList.contains(oldName);
     // rename remote config
     if (!await ApiClient().renameConfig(oldName, newName)) return;
     // rename local config
@@ -147,14 +150,18 @@ class NavCtrl extends GetxController {
     try {
       // when delete, ws can auto close, so force delete controller
       Get.delete<OverviewController>(tag: oldName, force: true);
-      Get.find<ScriptService>().deleteScriptModel(oldName);
+      scriptService.deleteScriptModel(oldName);
     } catch (_) {}
     // reactive new controller on current idx
     if (idx == selectedIndex.value) {
       switchScript(idx);
-      return;
+    } else {
+      Get.put(tag: newName, permanent: true, OverviewController(name: newName));
+      scriptService.addScriptModel(newName);
     }
-    Get.put(tag: newName, permanent: true, OverviewController(name: newName));
-    Get.find<ScriptService>().addScriptModel(newName);
+    // 把旧名的自启标记迁移到新名（deleteScriptModel 已抹掉旧名）
+    if (hadAutoRun) {
+      scriptService.updateAutoScript(newName, true);
+    }
   }
 }
