@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:oasx/api/api_client.dart';
+import 'package:oasx/config/translation/i18n_content.dart';
 import 'package:oasx/model/const/storage_key.dart';
 import 'package:oasx/model/script_model.dart';
 import 'package:oasx/service/websocket_service.dart';
@@ -58,6 +59,36 @@ class ScriptService extends GetxService {
     _persistAutoScriptList();
   }
 
+  // 后端就绪检查：轮询 testAddress，5 次内可达即触发自动启动脚本
+  Future<void> _waitBackendReadyAndAutoRun() async {
+    const maxRetry = 5;
+    const interval = Duration(milliseconds: 500);
+    for (var i = 0; i < maxRetry; i++) {
+      if (await ApiClient().testAddress()) {
+        await autoRunScript();
+        return;
+      }
+      await Future.delayed(interval);
+    }
+    // 后端不可达：跳过自动启动，不报错（可能未登录或服务未起）
+  }
+
+  // 自动启动脚本：fire-and-forget，并发启动已过滤「跳过已运行」的列表，
+  // 延迟采样运行状态，成功才提示；不阻塞启动流程。
+  Future<void> autoRunScript() async {
+    if (autoScriptList.isEmpty) return;
+    final pending = autoScriptList.where((name) => !isRunning(name)).toList();
+    if (pending.isEmpty) return;
+    await Future.wait(pending.map((name) => startScript(name)));
+    // 延迟采样运行状态判断成功，fire-and-forget 不阻塞调用方
+    Future.delayed(const Duration(seconds: 4), () {
+      final ok = autoScriptList.where(isRunning).toList();
+      if (ok.isNotEmpty) {
+        Get.snackbar(I18n.autoRunScript.tr, '$ok ${I18n.startSuccess.tr}');
+      }
+    });
+  }
+
   @override
   Future<void> onInit() async {
     _loadAutoScriptListFromStorage(); // 新增：先恢复列表
@@ -66,6 +97,8 @@ class ScriptService extends GetxService {
       await Future.wait(scriptList.map((name) => connectScript(name)));
     }
     super.onInit();
+    // 确认后端可达后再自动启动脚本；不可达则跳过且不报错
+    await _waitBackendReadyAndAutoRun();
   }
 
   @override
