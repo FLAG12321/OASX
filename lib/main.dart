@@ -7,6 +7,7 @@ import 'package:oasx/service/locale_service.dart';
 import 'package:oasx/service/theme_service.dart';
 import 'package:oasx/service/websocket_service.dart';
 import 'package:oasx/service/window_service.dart';
+import 'package:oasx/service/auto_start_service.dart';
 import 'package:oasx/utils/logger.dart';
 import 'package:responsive_builder/responsive_builder.dart';
 import 'package:get/get.dart';
@@ -80,6 +81,11 @@ Future<void> initService() async {
     Get.putAsync(() async => ThemeService()),
     Get.putAsync(() async => WindowService()),
   ]);
+
+  // 桌面平台才注册开机自启服务，非桌面 no-op
+  if (PlatformUtils.isDesktop) {
+    Get.putAsync(() async => AutoStartService(), permanent: true);
+  }
 
   Get.lazyPut(() => WebSocketService());
 }
