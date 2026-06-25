@@ -231,6 +231,14 @@ class I18n {
   static const String copy_success = 'Copy success';
   static const String selectAll = 'Select All';
 
+  // 开机自启与自动启动脚本相关文案
+  static const String launchAtStartup = 'Launch at Startup';
+  static const String launchAtStartupUpdateFailed =
+      'Failed to update launch at startup';
+  static const String autoRunScript = 'Auto Run Script';
+  static const String autoRunScriptConfig = 'Auto Run Script Config';
+  static const String startSuccess = 'started successfully';
+
   // 多账号统计（MultiDailyAltAcc）相关文案 key，中文译文见 _cn_multi_stats。
   static const String multiStatsTitle = 'Multi-Account Stats';
   static const String multiStatsNoData = 'No multi-account data';

@@ -87,6 +87,11 @@ final Map<String, String> _cn_ui = {
   I18n.config_add: '添加新配置',
   I18n.config_copy_from_exist: '复制已有配置',
   I18n.setting_saved: '设置已保存',
+  I18n.launchAtStartup: '开机自启',
+  I18n.launchAtStartupUpdateFailed: '开机自启设置失败',
+  I18n.autoRunScript: '自动启动脚本',
+  I18n.autoRunScriptConfig: '自动启动脚本配置',
+  I18n.startSuccess: '已启动',
 };
 
 final Map<String, String> _cn_menu = {
