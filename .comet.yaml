@@ -1,0 +1,8 @@
+# Comet 项目级配置
+# build_command 用于 build→verify 阶段守卫的构建校验。
+# flutter analyze 默认遇任何 issue（含 pre-existing 的 info/warning）都返回非零退出码，
+# 这里用脚本提取 error 行；只有 error 级别问题才视为构建失败。
+# guard 的 run_command_string 禁止 shell 元字符（;|&$`），故通过独立脚本封装。
+build_command: dart scripts/comet_build_check.dart
+# verify_command 跑除 master 预存失败的 widget_test 外的全量测试。
+verify_command: flutter test test/service/ test/controller/ test/api/ test/model/ test/views/

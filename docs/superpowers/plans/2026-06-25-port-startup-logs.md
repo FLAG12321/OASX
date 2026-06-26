@@ -53,7 +53,7 @@
 **Interfaces:**
 - Produces: `StorageKey.autoScriptList`、`StorageKey.launchAtStartup`（供后续 task 通过 `StorageKey.xxx.name` 读写 GetStorage）
 
-- [ ] **Step 1: 扩展枚举**
+- [x] **Step 1: 扩展枚举**
 
 把 `lib/model/const/storage_key.dart` 的枚举改为：
 
@@ -71,12 +71,12 @@ enum StorageKey {
 }
 ```
 
-- [ ] **Step 2: 验证编译**
+- [x] **Step 2: 验证编译**
 
 Run: `flutter analyze lib/model/const/storage_key.dart`
 Expected: `No issues found!`
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add lib/model/const/storage_key.dart
@@ -97,7 +97,7 @@ git commit -m "feat: 新增 autoScriptList/launchAtStartup 存储键"
 
 > key 命名遵循项目 camelCase 风格。英文 base 值直接写在 `I18n.xxx = '...'`，中文/英文译文在 map 里覆盖。`tip`（'Tip'）已存在，不再重复声明。
 
-- [ ] **Step 1: 在 i18n_content.dart 声明 key**
+- [x] **Step 1: 在 i18n_content.dart 声明 key**
 
 在 `lib/config/translation/i18n_content.dart` 的 `class I18n { ... }` 内（`selectAll` 附近）新增：
 
@@ -113,7 +113,7 @@ git commit -m "feat: 新增 autoScriptList/launchAtStartup 存储键"
   static const String startSuccess = 'started successfully';
 ```
 
-- [ ] **Step 2: 在 i18n_cn.dart 加中文译文**
+- [x] **Step 2: 在 i18n_cn.dart 加中文译文**
 
 在 `_cn_ui` 末尾（`I18n.selectAll: '全选',` 之后、闭合 `};` 之前）新增：
 
@@ -125,7 +125,7 @@ git commit -m "feat: 新增 autoScriptList/launchAtStartup 存储键"
   I18n.startSuccess: '已启动',
 ```
 
-- [ ] **Step 3: 在 i18n_us.dart 加英文译文**
+- [x] **Step 3: 在 i18n_us.dart 加英文译文**
 
 在 `_us_ui`（`lib/config/translation/i18n_us.dart:15`）末尾闭合 `};` 前新增：
 
@@ -137,12 +137,12 @@ git commit -m "feat: 新增 autoScriptList/launchAtStartup 存储键"
   I18n.startSuccess: 'started successfully',
 ```
 
-- [ ] **Step 4: 验证编译**
+- [x] **Step 4: 验证编译**
 
 Run: `flutter analyze lib/config/translation/`
 Expected: `No issues found!`
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/config/translation/
@@ -161,7 +161,7 @@ git commit -m "feat: 新增开机自启/自动启动脚本 i18n 文案"
 
 > 来源项目（`C:\Users\lu\Desktop\yys\OnmyojiAutoScript-easy-install\OASX\lib\service\autostart_service.dart`）已验证此实现：Windows `schtasks` + `Start-Process -Verb RunAs` 提权、macOS LaunchAgent plist、Linux autostart desktop file，启动时 `refresh` 读真实系统状态回写。本 task 为**带 import 适配的 verbatim 移植**——只改 import 路径，不改逻辑。
 
-- [ ] **Step 1: 创建文件并移植**
+- [x] **Step 1: 创建文件并移植**
 
 把来源项目 `lib/service/autostart_service.dart` 全文复制到当前项目 `lib/service/auto_start_service.dart`，然后**仅修改文件头部的 import**：
 
@@ -179,12 +179,12 @@ import 'package:package_info_plus/package_info_plus.dart';
 
 （原文件的 `package:oasx/modules/common/models/storage_key.dart` → `package:oasx/model/const/storage_key.dart`；`package:oasx/translation/i18n_content.dart` → `package:oasx/config/translation/i18n_content.dart`。其余 300 行逻辑、`_windowsTaskName = 'OASX'`、XML/plist/desktop 模板、`refresh`/`updateLaunchAtStartupEnable` 全部保持不变。）
 
-- [ ] **Step 2: 验证编译**
+- [x] **Step 2: 验证编译**
 
 Run: `flutter analyze lib/service/auto_start_service.dart`
 Expected: `No issues found!`
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add lib/service/auto_start_service.dart
@@ -202,7 +202,7 @@ git commit -m "feat: 移植 AutoStartService（桌面开机自启）"
 - Consumes: Task 3 的 `AutoStartService`、`PlatformUtils.isDesktop`
 - Produces: 桌面平台启动时 `AutoStartService` 已注册为 permanent 服务，其 `onInit` 自动 `refresh` 真实系统状态
 
-- [ ] **Step 1: 加 import**
+- [x] **Step 1: 加 import**
 
 在 `lib/main.dart` 顶部 import 区（`window_service` 附近）新增：
 
@@ -210,7 +210,7 @@ git commit -m "feat: 移植 AutoStartService（桌面开机自启）"
 import 'package:oasx/service/auto_start_service.dart';
 ```
 
-- [ ] **Step 2: 在 initService 注册（桌面守卫）**
+- [x] **Step 2: 在 initService 注册（桌面守卫）**
 
 把 `initService()`（`lib/main.dart:74`）改为：
 
@@ -234,12 +234,12 @@ Future<void> initService() async {
 }
 ```
 
-- [ ] **Step 3: 验证编译**
+- [x] **Step 3: 验证编译**
 
 Run: `flutter analyze lib/main.dart`
 Expected: `No issues found!`
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add lib/main.dart
@@ -259,7 +259,7 @@ git commit -m "feat: 桌面平台注册 AutoStartService"
 
 > 来源项目把这部分拆成 `script_service_auto.dart`（part 文件）+ 引入 `ProgressSnackbarController`/`TimeoutUtils`。本变更按 design doc **精简移植**：内联进 `script_service.dart`，反馈用 `Get.snackbar`，**不引入** part 文件和附属类。
 
-- [ ] **Step 1: 加 import 并移除 unused 注释**
+- [x] **Step 1: 加 import 并移除 unused 注释**
 
 `lib/service/script_service.dart:1-8` 的 import 区改为：
 
@@ -276,7 +276,7 @@ import 'package:oasx/service/websocket_service.dart';
 import 'package:oasx/views/overview/overview_view.dart';
 ```
 
-- [ ] **Step 2: 新增字段与持久化方法**
+- [x] **Step 2: 新增字段与持久化方法**
 
 在 `class ScriptService extends GetxService {` 内（`scriptModelMap` 声明之后、`onInit` 之前）新增字段和方法：
 
@@ -333,7 +333,7 @@ import 'package:oasx/views/overview/overview_view.dart';
   final _storage = GetStorage();
 ```
 
-- [ ] **Step 3: onInit 中 restore 列表**
+- [x] **Step 3: onInit 中 restore 列表**
 
 把 `onInit`（`lib/service/script_service.dart:17`）改为（autoRunScript 在 Task 6 实现，本步先加 restore 与占位调用）：
 
@@ -365,7 +365,7 @@ import 'package:oasx/views/overview/overview_view.dart';
   }
 ```
 
-- [ ] **Step 4: deleteScriptModel 同步移除自启标记**
+- [x] **Step 4: deleteScriptModel 同步移除自启标记**
 
 把 `deleteScriptModel`（`lib/service/script_service.dart:112`）改为：
 
@@ -381,12 +381,12 @@ import 'package:oasx/views/overview/overview_view.dart';
   }
 ```
 
-- [ ] **Step 5: 验证编译**
+- [x] **Step 5: 验证编译**
 
 Run: `flutter analyze lib/service/script_service.dart`
 Expected: `No issues found!`
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add lib/service/script_service.dart
@@ -406,7 +406,7 @@ git commit -m "feat: ScriptService 扩展自动启动脚本列表持久化与 is
 
 > 触发时机设计见 design doc：来源项目真实触发点是「确认连上后端后」，当前项目无对应 controller，改在 `onInit` 末尾用 `testAddress` 轮询 5 次 × 500ms 近似达成。就绪检查不可达时跳过 autoRun 且不报错。
 
-- [ ] **Step 1: 在 onInit 末尾接入就绪检查**
+- [x] **Step 1: 在 onInit 末尾接入就绪检查**
 
 把 `onInit` 改为：
 
@@ -424,7 +424,7 @@ git commit -m "feat: ScriptService 扩展自动启动脚本列表持久化与 is
   }
 ```
 
-- [ ] **Step 2: 新增就绪检查与 autoRunScript**
+- [x] **Step 2: 新增就绪检查与 autoRunScript**
 
 在 `updateAutoScript` 方法之后新增：
 
@@ -461,12 +461,12 @@ git commit -m "feat: ScriptService 扩展自动启动脚本列表持久化与 is
   }
 ```
 
-- [ ] **Step 3: 验证编译**
+- [x] **Step 3: 验证编译**
 
 Run: `flutter analyze lib/service/script_service.dart`
 Expected: `No issues found!`
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add lib/service/script_service.dart
@@ -485,7 +485,7 @@ git commit -m "feat: ScriptService 接入后端就绪检查与 autoRunScript"
 
 > **数据完整性陷阱**（design doc 关键决策）：`renameConfig` 内部是 `deleteScriptModel(old)` + `addScriptModel(new)`。`deleteScriptModel` 现在会移除自启标记，所以重命名会误删标记。本 task 在 `renameConfig` 删旧前捕获旧名是否在列表，加新后迁移到新名。`deleteConfig` 不需改动——`deleteScriptModel` 已处理。
 
-- [ ] **Step 1: renameConfig 迁移自启标记**
+- [x] **Step 1: renameConfig 迁移自启标记**
 
 把 `renameConfig`（`lib/controller/ctrl_nav.dart:139`）改为（在原逻辑外层包一层自启标记迁移）：
 
@@ -522,12 +522,12 @@ git commit -m "feat: ScriptService 接入后端就绪检查与 autoRunScript"
 
 > 注意：原代码在 `idx == selectedIndex.value` 分支 `return`，重命名后由 `switchScript` 重建 controller；非选中分支才手动 `addScriptModel`。本次把 `return` 改成 `if/else`，是为了让末尾的自启标记迁移对两个分支都生效——这是**行为修正**，注释已说明。
 
-- [ ] **Step 2: 验证编译**
+- [x] **Step 2: 验证编译**
 
 Run: `flutter analyze lib/controller/ctrl_nav.dart`
 Expected: `No issues found!`
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add lib/controller/ctrl_nav.dart
@@ -546,7 +546,7 @@ git commit -m "feat: 重命名脚本时迁移自启标记"
 
 > 设置页现有风格：私有 `StatelessWidget` + `styled_widget`（`.paddingAll`/`.toColumn`）+ `Obx`。两个新控件整体用 `PlatformUtils.isDesktop` 守卫，非桌面不渲染。`SettingsView.build` 的 body Column（`settings_view.dart:18-25`）插入这两个 widget。
 
-- [ ] **Step 1: 加 import**
+- [x] **Step 1: 加 import**
 
 在 `lib/views/settings/settings_view.dart` 顶部 import 区新增：
 
@@ -556,7 +556,7 @@ import 'package:oasx/service/script_service.dart';
 import 'package:oasx/utils/platform_utils.dart';
 ```
 
-- [ ] **Step 2: 在 build 的 Column 中插入两个控件（桌面守卫）**
+- [x] **Step 2: 在 build 的 Column 中插入两个控件（桌面守卫）**
 
 把 `SettingsView.build` 的 body（`settings_view.dart:18-25`）改为：
 
@@ -573,7 +573,7 @@ import 'package:oasx/utils/platform_utils.dart';
       ].toColumn().alignment(Alignment.center)),
 ```
 
-- [ ] **Step 3: 新增 _AutoStartWidget**
+- [x] **Step 3: 新增 _AutoStartWidget**
 
 在文件末尾新增私有 widget：
 
@@ -601,7 +601,7 @@ class _AutoStartWidget extends StatelessWidget {
 }
 ```
 
-- [ ] **Step 4: 新增 _AutoRunScriptsWidget**
+- [x] **Step 4: 新增 _AutoRunScriptsWidget**
 
 在 `_AutoStartWidget` 之后新增：
 
@@ -633,12 +633,12 @@ class _AutoRunScriptsWidget extends StatelessWidget {
 }
 ```
 
-- [ ] **Step 5: 验证编译**
+- [x] **Step 5: 验证编译**
 
 Run: `flutter analyze lib/views/settings/settings_view.dart`
 Expected: `No issues found!`
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add lib/views/settings/settings_view.dart
@@ -657,7 +657,7 @@ git commit -m "feat: 设置页新增开机自启开关与自动启动脚本多�
 
 > 测试范围：持久化读写、增删排序、isRunning 判断、autoRunScript 跳过已运行。`testAddress` 轮询和真实 `startScript` 依赖 WebSocket/网络，**不在此测**，由 Task 11 手动验证覆盖。
 
-- [ ] **Step 1: 创建测试文件**
+- [x] **Step 1: 创建测试文件**
 
 `test/service/script_service_auto_test.dart`：
 
@@ -717,12 +717,12 @@ void main() {
 }
 ```
 
-- [ ] **Step 2: 运行测试验证通过**
+- [x] **Step 2: 运行测试验证通过**
 
 Run: `flutter test test/service/script_service_auto_test.dart`
 Expected: `All tests passed!`
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add test/service/script_service_auto_test.dart
@@ -741,21 +741,21 @@ git commit -m "test: 自动启动脚本持久化与 autoRunScript 跳过逻辑"
 
 > 本 task 不写自动化测试，仅跑全量回归 + 记录手动验证清单。MSIX 沙箱下的 schtasks 提权、跨平台真实自启注册项，单元测试覆盖不了，必须手动验证（design doc 风险表）。
 
-- [ ] **Step 1: 全量静态分析**
+- [x] **Step 1: 全量静态分析**
 
 Run: `flutter analyze`
 Expected: `No issues found!`
 
-- [ ] **Step 2: 全量测试回归**
+- [x] **Step 2: 全量测试回归**
 
 Run: `flutter test`
 Expected: `All tests passed!`（含原有 contract/widget 测试 + Task 9 新测试）
 
-- [ ] **Step 3: 在 tasks.md 勾选已完成项**
+- [x] **Step 3: 在 tasks.md 勾选已完成项**
 
 把 `openspec/changes/port-startup-logs/tasks.md` 中所有 9 个 `- [ ]` 改为 `- [x]`。
 
-- [ ] **Step 4: 记录手动验证清单（commit body）**
+- [x] **Step 4: 记录手动验证清单（commit body）**
 
 把下列清单写入 commit body 并提交：
 
