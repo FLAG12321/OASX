@@ -1,3 +1,7 @@
+---
+archived-with: 2026-06-26-port-startup-logs
+status: final
+---
 # port-startup-logs 实施计划
 
 > **For agentic workers:** REQUIRED SUB-SKILL: 用 superpowers:subagent-driven-development（推荐）或 superpowers:executing-plans 逐任务执行。步骤用 checkbox（`- [ ]`）跟踪。

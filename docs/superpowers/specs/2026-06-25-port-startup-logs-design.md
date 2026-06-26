@@ -2,6 +2,8 @@
 comet_change: port-startup-logs
 role: technical-design
 canonical_spec: openspec
+archived-with: 2026-06-26-port-startup-logs
+status: final
 ---
 
 # port-startup-logs 技术设计

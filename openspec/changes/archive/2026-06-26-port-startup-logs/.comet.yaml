@@ -1,5 +1,5 @@
 workflow: full
-phase: verify
+phase: archive
 context_compression: off
 build_mode: executing-plans
 build_pause: null
@@ -12,11 +12,11 @@ auto_transition: true
 base_ref: 81c36241ccfe9107a79a2c0daa50bb1a3713423a
 design_doc: docs/superpowers/specs/2026-06-25-port-startup-logs-design.md
 plan: docs/superpowers/plans/2026-06-25-port-startup-logs.md
-verify_result: pending
+verify_result: pass
 verification_report: docs/superpowers/reports/2026-06-26-port-startup-logs-verify.md
-branch_status: pending
+branch_status: handled
 created_at: 2026-06-24
-verified_at: null
-archived: false
+verified_at: 2026-06-26
+archived: true
 handoff_context: openspec/changes/port-startup-logs/.comet/handoff/design-context.json
 handoff_hash: 3f73cdb22be6b890809d439b50cb4fe86d8f39235b4618b541a13403f574adf6
