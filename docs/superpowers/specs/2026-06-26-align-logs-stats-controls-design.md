@@ -245,3 +245,52 @@ prepend 更早日志后必须保持视口：
 | 历史窗口与实时流重复 | 用 line key 去重；无 key 时用文本 fallback |
 | 日志量过大 | 窗口化加载，限制保留行数（参考来源项目 100/300 行窗口） |
 | 移除 Stats 手动刷新导致用户无法强制刷新 | 保留自动刷新 timer，并用测试确认自动刷新仍工作 |
+
+## 后端验证与最终决策（2026-06-27 实测）
+
+初稿中的端点假设在运行中的 OAS 后端（`127.0.0.1:22288`）已逐一实测确认，本节把「假设/参照」升级为「已验证结论」，并锁定实现期不再讨论的决策。
+
+### 后端端点实测（OpenAPI 确认）
+
+从 `GET /openapi.json` 提取，与历史日志相关的端点真实存在：
+
+- **`GET /logs/{script_name}`**（日志窗口，懒加载核心）
+  - `cursor`（query，可选）：上一页返回的 `older_cursor`；不传 = 打开最新窗口。
+  - `limit_lines`（query，默认 500，上限 2000）：本次最多返回行数。
+  - `limit_bytes`（query，默认 262144）：本次最多返回字节数。
+- **`GET /logs/{script_name}/stream`**（SSE 实时流）
+  - `cursor`（query，可选）：上一窗口的 `live_cursor`；不传 = 从当前最新位置开始订阅。
+
+注：另存在 `GET /{script_name}/log`（SSE，`GET` only，`HEAD` 返回 405），是更老的实时日志流；本方案不使用它。
+
+### 窗口返回结构实测（前端 model 依据）
+
+`GET /logs/{script_name}` 返回顶层字段：
+
+```
+script_name, window, older_cursor, live_cursor, has_older, reached_start, limits, lines
+```
+
+- `lines[i]` 为 dict：`{ file_name, line_no, offset, byte_length, text }`。**前端只渲染 `text`**；其余字段仅用于去重 key。
+- `older_cursor` / `live_cursor` 为 base64 编码的**不透明字符串**，前端只透传、不解析。
+- `reached_start` 为 true 时停止继续向上请求。
+
+> 初稿 §3.1 的 `ScriptLogWindow` model 字段名（`olderCursor` / `liveCursor` / `reachedStart`）与实测一致，但 `lines` 实测是 dict 而非纯字符串——实现期 model 以本节实测为准（取 `text` 渲染）。
+
+### 锁定决策（实现期不再讨论）
+
+1. **实时日志通道：保留 WebSocket，不切 SSE。**
+   - 现有 `wsListener`（`script_service.dart`）已稳定承载 state/schedule 推送与实时日志 `addLog`，不动。
+   - 历史日志用一次性 `GET /logs/{script_name}`（HTTP）拉取 + 向上懒加载，与 WS 实时分属两条职责清晰的通道。
+   - 不使用 `/logs/{script_name}/stream`（SSE），避免与 WS 形成双实时通道、引入两路去重复杂度。
+
+2. **历史窗口状态放 `OverviewController`，不新建独立 controller。**
+   - `OverviewController` 已 mixin `LogMixin` 并绑定脚本名，历史 prepend 需要进入同一个 `logs` 列表。
+
+3. **prepend 视口保持用轻量方案，不引入 anchor 行追踪。**
+   - prepend 前记录 `scrollOffset`，prepend 后在 `addPostFrameCallback` 用 `jumpTo(oldOffset + 插入高度估算)` 恢复。
+   - 现有 `_scrollLogs` 的 `if (!force && !autoScroll) return` 守卫已保证用户向上翻阅（`autoScroll=false`）时不会被打断跳底，天然兜底。
+
+### 触发懒加载的阈值
+
+向上滚动接近顶部检测阈值固定为 `currentOffset <= 80`（与现有「到底部」判定 80px 容差保持一致风格）。`reachedStart=true` 或 `_historyLoading=true` 时跳过请求，避免重复/无限拉取。
