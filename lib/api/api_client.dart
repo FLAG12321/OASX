@@ -11,6 +11,7 @@ import 'package:oasx/utils/check_version.dart';
 import 'package:oasx/config/constants.dart';
 import 'package:oasx/controller/settings.dart';
 import './home_model.dart';
+import './script_log_models.dart';
 import './update_info_model.dart';
 
 /// common result
@@ -278,6 +279,50 @@ class ApiClient {
     return res.data is Map
         ? Map<String, dynamic>.from(res.data as Map)
         : <String, dynamic>{};
+  }
+
+  /// 构造脚本日志窗口路径；单测只覆盖此纯 helper，避免触发真实网络。
+  static String buildScriptLogWindowPath(String scriptName) {
+    return '/logs/${Uri.encodeComponent(scriptName)}';
+  }
+
+  /// 构造脚本日志窗口 query；cursor 为空表示打开最新窗口。
+  static Map<String, dynamic> buildScriptLogWindowQuery({
+    String? cursor,
+    int limitLines = 500,
+  }) {
+    final query = <String, dynamic>{'limit_lines': limitLines};
+    if (cursor != null && cursor.isNotEmpty) {
+      query['cursor'] = cursor;
+    }
+    return query;
+  }
+
+  // 中文注释：拉取脚本历史日志窗口；失败返回 null，由上层保留 WebSocket 实时日志。
+  Future<ScriptLogWindow?> getScriptLogWindow(
+    String scriptName, {
+    String? cursor,
+    int limitLines = 500,
+  }) async {
+    final res = await request(
+      () => get(
+        buildScriptLogWindowPath(scriptName),
+        queryParameters: buildScriptLogWindowQuery(
+          cursor: cursor,
+          limitLines: limitLines,
+        ),
+      ),
+    );
+    if (!res.isSuccess || res.data is! Map) {
+      // 中文注释：协议异常（成功但非 Map body）打印便于排查，仍 fallback 到 null 不阻塞。
+      if (res.isSuccess && res.data is! Map) {
+        printError(info: 'script log window payload is not a map: ${res.data.runtimeType}');
+      }
+      return null;
+    }
+    return ScriptLogWindow.fromWindowJson(
+      Map<String, dynamic>.from(res.data as Map),
+    );
   }
 
 // ---------------------------------   Snackbar --------------------------------
