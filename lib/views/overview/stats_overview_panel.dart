@@ -126,10 +126,7 @@ class _StatsOverviewPanelState extends State<StatsOverviewPanel> {
       return ListView(
         padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
         children: [
-          _HeaderSection(
-            controller: controller,
-            onRefresh: controller.refreshCurrentDate,
-          ),
+          _HeaderSection(controller: controller),
           const SizedBox(height: 12),
           if (controller.hasMultiAccountEntry) ...[
             _MultiAccountEntryCard(
@@ -301,12 +298,11 @@ class _StatsStateView extends StatelessWidget {
   }
 }
 
-/// 头部：状态图标 + 日期下拉 + 总耗时 + 刷新按钮。
+/// 头部：状态图标 + 日期下拉 + 总耗时。
 class _HeaderSection extends StatelessWidget {
-  const _HeaderSection({required this.controller, required this.onRefresh});
+  const _HeaderSection({required this.controller});
 
   final StatsPageController controller;
-  final Future<void> Function({bool showBlockingLoading}) onRefresh;
 
   @override
   Widget build(BuildContext context) {
@@ -333,12 +329,6 @@ class _HeaderSection extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          IconButton(
-            tooltip: '刷新',
-            onPressed: () => onRefresh(showBlockingLoading: false),
-            icon: const Icon(Icons.refresh_rounded, size: 20),
-          ),
-          const SizedBox(width: 4),
           Text(
             formatStatisticsDuration(totalDuration),
             maxLines: 1,

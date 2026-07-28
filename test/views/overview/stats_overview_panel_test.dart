@@ -59,6 +59,25 @@ void main() {
 
     expect(find.text('20s'), findsWidgets);
   });
+
+  // 中文注释：锁定 Stats 面板不再渲染手动刷新按钮，刷新由自动流负责。
+  testWidgets('stats panel renders no manual refresh button', (tester) async {
+    final controller = StatsPageController(
+      loadDates: (_) async => ['2026-06-24'],
+      loadDay: (_, __) async => _buildDayRaw(totalSeconds: 5),
+    );
+    Get.put(controller, tag: 'oas1');
+
+    await tester.pumpWidget(
+      const GetMaterialApp(
+        home: Scaffold(body: StatsOverviewPanel(scriptName: 'oas1')),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.byIcon(Icons.refresh_rounded), findsNothing);
+  });
 }
 
 Map<String, dynamic> _buildDayRaw({double totalSeconds = 0}) {
