@@ -823,6 +823,7 @@ class ScriptMultiErrorRecord {
     required this.task,
     required this.etype,
     required this.emsg,
+    this.time = '',
   });
 
   /// 从服务端 JSON 构建多号统计错误记录。
@@ -831,6 +832,7 @@ class ScriptMultiErrorRecord {
       task: _readString(json['task']),
       etype: _readString(json['etype']),
       emsg: _readString(json['emsg']),
+      time: _readString(json['time']),
     );
   }
 
@@ -842,6 +844,9 @@ class ScriptMultiErrorRecord {
 
   /// 错误信息。
   final String emsg;
+
+  /// 事件时刻，供会话过滤；旧数据可能为空串。
+  final String time;
 
   /// 对外展示文本。
   String get displayText {
@@ -1041,6 +1046,10 @@ ScriptMultiAccountStatistics? _filterAccountForSession(
   final mshops = account.mshops
       .where((mshop) => _isTextTimeInSession(mshop.time, session))
       .toList();
+  // 中文注释：错误记录带 time 后可按会话窗口归属；无 time 的旧数据解析失败自然被排除。
+  final errors = account.errors
+      .where((error) => _isTextTimeInSession(error.time, session))
+      .toList();
   final sessionBattleCount = tasks.fold<int>(
     0,
     (sum, task) => sum + task.battleCount,
@@ -1059,15 +1068,13 @@ ScriptMultiAccountStatistics? _filterAccountForSession(
     svr: account.svr,
     switchOk: account.switchOk,
     durationSeconds: durationSeconds,
-    // 中文注释：错误缺少逐事件时间戳，无法可靠归属到 session，故会话视图中置 0。
-    errorCount: 0,
+    errorCount: errors.length,
     battleCount: sessionBattleCount,
     battleTotalDurationSeconds: sessionBattleTotalDuration,
     battleAvgDurationSeconds: sessionBattleAvgDuration,
     coopTotal: coops.length,
     tasks: tasks,
-    // 中文注释：错误明细同样不在 session 视图中保留，避免混入全天数据。
-    errors: const [],
+    errors: errors,
     coops: coops,
     mshops: mshops,
     segments: segments,

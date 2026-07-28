@@ -178,4 +178,46 @@ void main() {
     expect(sessionView.accounts.first.errorCount, equals(0));
     expect(sessionView.accounts.first.errors, isEmpty);
   });
+
+  // 中文注释：错误记录带 time 后，会话视图按时间窗口归属错误，不再整体置 0。
+  test('会话过滤按 time 字段归属错误记录', () {
+    final multi = ScriptMultiStatistics.fromJson({
+      'accounts': [
+        {
+          'account': 'a@x.com',
+          'character': '角色A',
+          'svr': '一区',
+          'switch_ok': true,
+          'duration_seconds': 20.0,
+          'error_count': 2,
+          'battle_count': 0,
+          'coop_total': 0,
+          'tasks': [],
+          'errors': [
+            {'task': 'mail', 'etype': 'E1', 'emsg': 'boom1', 'time': '2026-06-20 06:00:05.000'},
+            {'task': 'mail', 'etype': 'E2', 'emsg': 'boom2', 'time': '2026-06-20 07:00:05.000'},
+          ],
+          'coops': [],
+          'mshops': [],
+          'segments': [
+            {'start_time': '2026-06-20 06:00:00.000', 'end_time': '2026-06-20 06:00:10.000', 'duration_seconds': 10.0, 'session': 0},
+            {'start_time': '2026-06-20 07:00:00.000', 'end_time': '2026-06-20 07:00:10.000', 'duration_seconds': 10.0, 'session': 1},
+          ],
+        }
+      ],
+      'sessions': [
+        {'index': 0, 'start_time': '2026-06-20 06:00:00.000', 'end_time': '2026-06-20 06:00:10.000', 'duration_seconds': 10.0, 'account_count': 1},
+        {'index': 1, 'start_time': '2026-06-20 07:00:00.000', 'end_time': '2026-06-20 07:00:10.000', 'duration_seconds': 10.0, 'account_count': 1},
+      ],
+      'total_duration_seconds': 20.0,
+    });
+
+    final view = filterMultiAccountSessionData(multi: multi, sessionIndex: 0);
+
+    expect(view.accounts, hasLength(1));
+    // 会话 0 只命中第一条错误，不再整体置 0
+    expect(view.accounts.first.errorCount, 1);
+    expect(view.accounts.first.errors, hasLength(1));
+    expect(view.accounts.first.errors.first.etype, 'E1');
+  });
 }
