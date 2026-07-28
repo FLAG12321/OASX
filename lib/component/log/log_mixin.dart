@@ -37,6 +37,24 @@ mixin LogMixin on GetxController {
 
   void Function({bool isJump, bool force, int scrollOffset})? scrollLogs;
 
+  /// 头部行数变化后由 LogWidget 保持当前阅读视口；
+  /// 参数为头部变化行数（prepend 为正、移除残留历史为负）。
+  void Function(int changedCount)? preserveViewportAfterPrepend;
+
+  /// UI 日志从头部被截断后的通知钩子；默认空实现，由子类修复历史连续性。
+  void onUiLogsTrimmedFromHead(int removedCount) {}
+
+  /// 是否允许继续加载更早历史日志；默认不支持，由子类覆写。
+  bool get canLoadOlderLogs => false;
+
+  /// 接近顶部时触发的历史日志加载钩子；默认空实现。
+  Future<void> loadOlderLogs() async {}
+
+  /// 当前 UI 与 pending 中是否已经包含该日志文本。
+  bool containsVisibleOrPendingLog(String log) {
+    return logs.contains(log) || _pendingLogs.contains(log);
+  }
+
   @override
   void onInit() {
     _refreshTimer ??= Timer.periodic(const Duration(milliseconds: 50), (timer) {
@@ -63,7 +81,10 @@ mixin LogMixin on GetxController {
     if (!autoScroll.value) return;
     // UI 限制：只保留最新 maxLines 行
     if (logs.length > maxLines) {
-      logs.removeRange(0, logs.length - maxLines);
+      final removed = logs.length - maxLines;
+      logs.removeRange(0, removed);
+      // 中文注释：头部被截断会破坏已加载历史的连续性，通知子类修复。
+      onUiLogsTrimmedFromHead(removed);
     }
   }
 
@@ -87,6 +108,8 @@ mixin LogMixin on GetxController {
         if (removeFromLogs > 0) {
           logs.removeRange(0, removeFromLogs);
           overflow -= removeFromLogs;
+          // 中文注释：头部被截断会破坏已加载历史的连续性，通知子类修复。
+          onUiLogsTrimmedFromHead(removeFromLogs);
         }
       }
       // 如果还不够，就从 pending 里删除最老的

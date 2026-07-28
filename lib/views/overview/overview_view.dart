@@ -3,6 +3,8 @@ library overview;
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:oasx/api/api_client.dart';
+import 'package:oasx/api/script_log_models.dart';
 import 'package:oasx/component/log/log_mixin.dart';
 import 'package:oasx/component/log/log_widget.dart';
 import 'package:oasx/model/script_model.dart';
@@ -19,13 +21,21 @@ part '../../controller/overview/taskitem_model.dart';
 part './taskitem_view.dart';
 
 class Overview extends StatelessWidget {
-  const Overview({Key? key, this.logTopPanelLeading, this.logChild}) : super(key: key);
+  const Overview({
+    Key? key,
+    this.logTopPanelLeading,
+    this.logChild,
+    this.showLogActions = true,
+  }) : super(key: key);
 
   // 中文注释：允许外部向日志面板头部注入自定义前导控件，例如 Logs/Stats 切换。
   final Widget? logTopPanelLeading;
 
   // 中文注释：允许外部复用日志面板外壳，但切换主体内容区域。
   final Widget? logChild;
+
+  // 中文注释：Stats 标签传 false，用于隐藏复制、自动滚动、清空日志操作按钮。
+  final bool showLogActions;
 
   @override
   Widget build(BuildContext context) {
@@ -45,6 +55,9 @@ class Overview extends StatelessWidget {
                   key: ValueKey(overviewController.hashCode),
                   controller: overviewController,
                   title: I18n.log.tr,
+                  enableCopy: showLogActions,
+                  enableAutoScroll: showLogActions,
+                  enableClear: showLogActions,
                   enableCollapse: false,
                   topPanelLeading: logTopPanelLeading,
                   child: logChild)
@@ -67,6 +80,9 @@ class Overview extends StatelessWidget {
                 key: ValueKey(overviewController.hashCode),
                 controller: overviewController,
                 title: I18n.log.tr,
+                enableCopy: showLogActions,
+                enableAutoScroll: showLogActions,
+                enableClear: showLogActions,
                 enableCollapse: false,
                 topPanelLeading: logTopPanelLeading,
                 child: logChild)

@@ -80,6 +80,8 @@ class _OverviewLogsStatsViewState extends State<OverviewLogsStatsView>
           ],
         ),
       ),
+      // 中文注释：Stats 标签隐藏复制、自动滚动、清空等日志操作按钮，仅 Logs 标签展示。
+      showLogActions: !showStats,
       // 中文注释：在同一日志面板主体区域内切换日志内容与 Stats 内容。
       logChild:
           showStats ? StatsOverviewPanel(scriptName: widget.scriptName) : null,

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:easy_rich_text/easy_rich_text.dart';
@@ -55,6 +56,8 @@ class _LogWidgetState extends State<LogWidget> {
       }
     });
     widget.controller.scrollLogs = _scrollLogs;
+    // 中文注释：注册 prepend 历史日志后的视口补偿回调。
+    widget.controller.preserveViewportAfterPrepend = _preserveViewportAfterPrepend;
   }
 
   @override
@@ -96,6 +99,11 @@ class _LogWidgetState extends State<LogWidget> {
   void dispose() {
     if (_scrollController != null && _scrollController!.hasClients) {
       widget.controller.saveScrollOffset(_scrollController!.offset);
+    }
+    // 中文注释：仅当回调仍指向本 State 时解绑，避免误清其他 LogWidget 的注册。
+    if (widget.controller.preserveViewportAfterPrepend ==
+        _preserveViewportAfterPrepend) {
+      widget.controller.preserveViewportAfterPrepend = null;
     }
     _scrollController?.dispose();
     _scrollController = null;
@@ -141,10 +149,38 @@ class _LogWidgetState extends State<LogWidget> {
     });
   }
 
+  // 中文注释：头部行数变化后补偿 offset，保持阅读视口。行高一致（maxLines:1），
+  // 用总高度差摊到总行数变化再乘以头部变化行数，排除同一帧底部 append 的高度干扰。
+  void _preserveViewportAfterPrepend(int changedCount) {
+    if (_scrollController == null || !_scrollController!.hasClients) return;
+    final currentOffset = _scrollController!.offset;
+    final oldMaxExtent = _scrollController!.position.maxScrollExtent;
+    // 中文注释：回调在 controller 变更 logs 之后同步触发，此时布局尚未更新。
+    final callTimeCount = widget.controller.logs.length;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController == null || !_scrollController!.hasClients) return;
+      final position = _scrollController!.position;
+      final totalCountDelta =
+          changedCount + (widget.controller.logs.length - callTimeCount);
+      if (totalCountDelta == 0) return;
+      final perLineExtent =
+          (position.maxScrollExtent - oldMaxExtent) / totalCountDelta;
+      final compensation = perLineExtent * changedCount;
+      if (compensation == 0) return;
+      _scrollController!.jumpTo(
+          (currentOffset + compensation).clamp(0.0, position.maxScrollExtent));
+    });
+  }
+
   void _handleUserScroll() {
     if (_scrollController == null || !_scrollController!.hasClients) return;
     final maxExtent = _scrollController!.position.maxScrollExtent;
     final currentOffset = _scrollController!.offset;
+
+    // 中文注释：接近顶部时请求更早历史日志；默认 controller 不支持时不会触发。
+    if (currentOffset <= 80 && widget.controller.canLoadOlderLogs) {
+      unawaited(widget.controller.loadOlderLogs());
+    }
 
     // 判断是否在底部（容差80像素）
     final isAtBottom = currentOffset >= (maxExtent - 80);
