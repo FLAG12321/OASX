@@ -63,13 +63,13 @@ key 收集（与前端渲染完全同源）：
 1. `mm.config_cache('template').gui_menu_list` 的 keys（菜单分组名）与 values（任务名）。
 2. 对每个任务调用 `model.script_task(task)`，收集：分组名（返回 dict 的 key）、每个字段 item 的 `name`、`description`（存在时）、`enumEnum` 的每个枚举值。
 
-判定缺失：key 不在 `assets/i18n/zh-CN.json` 且不在 `module/config/i18n/zh-CN.json`（前端内置翻译镜像）。缺失 key 以空字符串 `""` 追加写回 `assets/i18n/zh-CN.json`（保留既有条目顺序，追加尾部），日志报告补齐数量。开发者随后只需在该文件填中文。
+判定缺失：key 不在 `assets/i18n/zh-CN.json` 且不在 `module/config/i18n/zh-CN.json`（前端内置翻译镜像）。缺失 key 以 **key 原文为占位值**追加写回 `assets/i18n/zh-CN.json`（保留既有条目顺序，追加尾部），日志报告补齐数量。占位值与 key 相同，显示效果与未翻译时一致；开发者随后只需把值改成中文。
 
 守护条件：若镜像文件不存在（OASX 从未连接过本后端），跳过本次补齐并 warning，避免把数百个前端内置已翻译 key 误判为缺失灌入文件。
 
-### 4.2 后端：下发时过滤空值
+### 4.2 后端：下发时过滤空值（防御性保留）
 
-`Addition.load_additions()` 过滤掉 value 为空字符串的条目后再返回。未填写的占位 key 不下发，前端 `.tr` 回退显示 key 原文而非空白。`load_additions` 每次请求实时读文件，因此**填写翻译后无需重启后端**。
+`Addition.load_additions()` 过滤掉 value 为空字符串或非字符串的条目后再返回，防御历史空值占位条目与手工误填。占位条目（值 = key 原文）非空，会正常下发，前端显示效果与 `.tr` 回退一致。`load_additions` 每次请求实时读文件，因此**填写翻译后无需重启后端**。
 
 ### 4.3 前端：拉取后立即生效（本次一次性改动）
 
@@ -85,13 +85,13 @@ key 收集（与前端渲染完全同源）：
 - 整个 `sync_missing_keys()` 外层 try/except：任何失败只记日志，不阻塞服务启动。
 - 前端 `Get.locale` 为 null（理论不会，GetMaterialApp 已设 locale）：跳过刷新，不崩溃。
 - 路径约定：`assets_i18n_dir` 与既有 `file_zh_cn` 一致，在模块 import 时基于 `Path.cwd()` 固化，要求后端进程以仓库根为工作目录启动（现有部署方式即如此）。
-- 已知限制：若后端先于新版 OASX 启动（镜像文件陈旧），前端新内置的 key 会被误判缺失、以空值追加进 assets 文件；空值不下发，无功能影响，仅产生少量待清理的噪音条目。
+- 已知限制：若后端先于新版 OASX 启动（镜像文件陈旧），前端新内置的 key 会被误判缺失、以 key 原文为值追加进 assets 文件；值与 key 相同不影响显示，无功能影响，仅产生少量待清理的噪音条目。
 
 ## 6. 验收标准
 
-1. 后端新增带新字段的 task → 重启后端 → `assets/i18n/zh-CN.json` 自动出现该任务名、分组名、字段名、description key、enum 值的空值条目；已有条目与顺序不变。
+1. 后端新增带新字段的 task → 重启后端 → `assets/i18n/zh-CN.json` 自动出现该任务名、分组名、字段名、description key、enum 值的占位条目（值 = key 原文）；已有条目与顺序不变。
 2. 在该文件填入中文（不重启后端）→ 启动 OASX → **当次启动内**新任务菜单名、字段名、枚举值即显示中文，无需重启 OASX。
-3. 空值条目不下发：未填写的 key 在 OASX 显示原 key，不显示空白。
+3. 未填写的占位条目（值 = key 原文）在 OASX 显示原 key，不显示空白；空值条目（历史数据）被过滤不下发。
 4. 已翻译内容无回归：前端内置翻译覆盖的 key 不会被追加为缺失条目，也不受下发数据影响。
 5. 镜像文件缺失时后端启动不报错，仅 warning 且不修改 `assets/i18n/zh-CN.json`。
 6. 此后再新增 task/字段，重复步骤 1-2 即可，前端无需任何代码改动或重新编译。
@@ -102,7 +102,7 @@ key 收集（与前端渲染完全同源）：
 
 - `sync_missing_keys` 对给定 schema 收集 key 的正确性（任务名/分组/字段 name/description/enum）。
 - 差集判定：assets 与镜像均命中/仅一方命中/均缺失三种情况。
-- 空值过滤：`load_additions` 不返回空字符串条目。
+- 空值过滤（防御性）：`load_additions` 不返回空字符串条目。
 - 损坏 JSON、镜像缺失两个守护分支。
 
 前端：`applyAdditionalTranslate` 合入翻译表的单元测试（含空字符串值被忽略的用例，Flutter test）；端到端行为按第 6 节验收标准手动验证。
