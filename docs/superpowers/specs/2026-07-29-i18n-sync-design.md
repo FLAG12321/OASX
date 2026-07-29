@@ -49,7 +49,7 @@
 - 事实来源：保持 `assets/i18n/zh-CN.json` 手工填写中文，配套自动补齐工具（用户决策）。
 - 工具运行方式：后端服务启动时自动扫描补齐缺失 key（用户决策）。
 - 生效时机：OASX 启动时拉取后**当次立即生效**，无需重启（用户决策）。
-- en-US：不处理，英文界面继续显示原 key（用户决策）。
+- en-US：不维护英文翻译（用户决策）。实际回退行为：GetX `.tr` 在当前语言查不到 key 时回退到 fallbackLocale（zh-CN），因此英文界面下这些新 key 显示中文，而非原 key（plan-reviewer 依据 GetX 4.7.3 源码核实）。
 - 前端改动范围：仅本次一次性改动「拉取后立即应用」逻辑；落地后新增翻译不再需要前端改动（用户澄清：「前端不改代码」指后续工作流，非本次实现）。
 
 ## 4. 方案设计
@@ -75,6 +75,7 @@ key 收集（与前端渲染完全同源）：
 
 - `lib/service/locale_service.dart`：`DynamicMessages` mixin 新增 `applyAdditionalTranslate(Map<String, Map<String, String>> data)`，把 zh-CN / en-US 两组条目逐条 `translateUpdate` 合入内存翻译表（复用现有方法）。
 - `lib/controller/ctrl_nav.dart` 的 `onInit`：拿到 additional_translate 数据后，先 `applyAdditionalTranslate` 合入内存，再 `saveAdditionalTranslate` 写缓存（离线兜底保留），最后 `Get.updateLocale(Get.locale!)` 触发全局重建，让已渲染的菜单/界面立刻换上新翻译。
+- `lib/config/translation/i18n.dart` 的 `translateUpdate` 入口增加空字符串守护：空值直接忽略。兼容两类场景——旧后端未部署空值过滤时直接下发的空值、历史缓存文件中残留的空值条目（`loadMessage` 加载路径同样经过该入口），避免 `.tr` 返回空串导致界面空白。
 - 启动时读缓存的 `loadMessage()` 逻辑不动：断网时仍能用上次拉到的翻译。
 
 ## 5. 错误处理
@@ -83,6 +84,8 @@ key 收集（与前端渲染完全同源）：
 - `assets/i18n/zh-CN.json` JSON 损坏：不写回（保护人工翻译成果），error 日志，服务照常启动。
 - 整个 `sync_missing_keys()` 外层 try/except：任何失败只记日志，不阻塞服务启动。
 - 前端 `Get.locale` 为 null（理论不会，GetMaterialApp 已设 locale）：跳过刷新，不崩溃。
+- 路径约定：`assets_i18n_dir` 与既有 `file_zh_cn` 一致，在模块 import 时基于 `Path.cwd()` 固化，要求后端进程以仓库根为工作目录启动（现有部署方式即如此）。
+- 已知限制：若后端先于新版 OASX 启动（镜像文件陈旧），前端新内置的 key 会被误判缺失、以空值追加进 assets 文件；空值不下发，无功能影响，仅产生少量待清理的噪音条目。
 
 ## 6. 验收标准
 
@@ -102,7 +105,7 @@ key 收集（与前端渲染完全同源）：
 - 空值过滤：`load_additions` 不返回空字符串条目。
 - 损坏 JSON、镜像缺失两个守护分支。
 
-前端：`applyAdditionalTranslate` 合入翻译表的单元测试（Flutter test）；端到端行为按第 6 节验收标准手动验证。
+前端：`applyAdditionalTranslate` 合入翻译表的单元测试（含空字符串值被忽略的用例，Flutter test）；端到端行为按第 6 节验收标准手动验证。
 
 ## 8. 实施流程约束
 
