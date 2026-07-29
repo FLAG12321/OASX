@@ -238,6 +238,10 @@ class I18n {
   static const String autoRunScript = 'Auto Run Script';
   static const String autoRunScriptConfig = 'Auto Run Script Config';
   static const String startSuccess = 'started successfully';
+  // Server 页「OASX自启动设置」区块标题与未登录提示
+  static const String oasxAutoStartSettings = 'OASX Autostart Settings';
+  static const String autoRunScriptLoginHint =
+      'Log in to configure auto-run scripts';
 
   // 多账号统计（MultiDailyAltAcc）相关文案 key，中文译文见 _cn_multi_stats。
   static const String multiStatsTitle = 'Multi-Account Stats';

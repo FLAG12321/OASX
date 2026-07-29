@@ -12,7 +12,9 @@ import 'package:styled_widget/styled_widget.dart';
 // code_editor 已移除，使用原生 TextField 替代
 
 import 'package:oasx/config/translation/i18n_content.dart';
+import 'package:oasx/utils/platform_utils.dart';
 import 'package:oasx/views/layout/appbar.dart';
+import 'package:oasx/views/server/auto_start_settings.dart';
 import 'package:oasx/controller/settings.dart';
 
 part './deploy_view.dart';
@@ -43,6 +45,10 @@ class ServerView extends StatelessWidget {
             children: [
               path(context),
               deploy(constraints.maxHeight - 200, context),
+              // OASX自启动设置：位于「服务启动配置」与「服务启动日志」之间。
+              // 仅桌面渲染（AutoStartService 只在桌面注册）；
+              // 条件必须是构建期稳定值，组内部按 children 长度生成 key 列表
+              if (PlatformUtils.isDesktop) autoStart(context),
             ],
           ),
           LogWidget(
@@ -120,6 +126,27 @@ class ServerView extends StatelessWidget {
         SingleChildScrollView(
           child: code(maxHeight - 50),
         ).constrained(height: maxHeight)
+      ],
+    );
+  }
+
+  // 「OASX自启动设置」折叠面板，样式与 path/deploy 一致；
+  // 内容区抽在 auto_start_settings.dart，便于独立 widget 测试
+  ExpansionTileItem autoStart(BuildContext context) {
+    return ExpansionTileItem(
+      initiallyExpanded: false,
+      isHasTopBorder: false,
+      isHasBottomBorder: false,
+      collapsedBackgroundColor:
+          Theme.of(context).colorScheme.secondaryContainer.withOpacity(0.24),
+      borderRadius: const BorderRadius.all(Radius.circular(10)),
+      // 默认 children 居中会让裸 Text 水平居中，显式左对齐
+      expandedCrossAxisAlignment: CrossAxisAlignment.start,
+      childrenPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      title: Text(I18n.oasxAutoStartSettings.tr,
+          style: Theme.of(context).textTheme.titleMedium),
+      children: const [
+        AutoStartSettingsContent(),
       ],
     );
   }
