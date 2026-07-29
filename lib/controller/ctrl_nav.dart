@@ -20,7 +20,14 @@ class NavCtrl extends GetxController {
     await ApiClient().putChineseTranslate();
     final additionalTranslate = await ApiClient().getAdditionalTranslate();
     if (additionalTranslate.isNotEmpty) {
-      Get.find<LocaleService>().saveAdditionalTranslate(additionalTranslate);
+      final localeService = Get.find<LocaleService>();
+      // 先合入内存翻译表（当次启动立即生效），再写缓存文件（离线兜底，下次启动早期加载）
+      localeService.applyAdditionalTranslate(additionalTranslate);
+      await localeService.saveAdditionalTranslate(additionalTranslate);
+      // 此时部分界面可能已用旧翻译渲染，强制触发一次全局重建
+      if (Get.locale != null) {
+        Get.updateLocale(Get.locale!);
+      }
     }
 
     navNameList.value = await ApiClient().getConfigList();
