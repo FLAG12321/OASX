@@ -72,6 +72,19 @@ mixin DynamicMessages {
     return true;
   }
 
+  /// 把后端下发的补充翻译立即合入内存翻译表，使当次启动即可显示新翻译
+  /// （saveAdditionalTranslate 只写缓存文件，要下次启动才生效）
+  ///
+  /// 注意隐式契约：putChineseTranslate 上传镜像用的是 Messages() 新实例
+  /// （编译期内置翻译），不受本方法运行时合入的条目影响；后端靠这一点
+  /// 区分「前端内置」与「真缺失」，勿改为复用本实例上传
+  void applyAdditionalTranslate(Map<String, Map<String, String>> data) {
+    data.forEach((lang, entries) {
+      entries.forEach(
+          (key, value) => _messages.translateUpdate(key, value, locale: lang));
+    });
+  }
+
   Future<bool> saveAdditionalTranslate(
       Map<String, Map<String, String>> data) async {
     await _saveAdditionalTranslate(data["zh-CN"]!, lang: 'zh-CN');

@@ -94,6 +94,11 @@ class Messages extends Translations {
   };
 
   bool translateUpdate(String key, String value, {String locale = 'zh-CN'}) {
+    // 空字符串守护：旧后端下发或历史缓存中的空值占位条目直接忽略，
+    // 否则 .tr 返回空串会导致界面显示空白
+    if (value.isEmpty) {
+      return false;
+    }
     if (locale == 'en-US') {
       all_us_translate[key] = value;
     } else if (locale == 'zh-CN') {

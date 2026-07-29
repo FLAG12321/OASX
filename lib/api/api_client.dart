@@ -162,12 +162,31 @@ class ApiClient {
     return res.isSuccess && res.data == true;
   }
 
+  /// 只保留合法的字符串条目；后端异常或手工误填时字段可能缺失/含非字符串值，
+  /// 这里兜底防止 cast 异常中断 NavCtrl.onInit 导致导航空白
+  Map<String, String> _stringEntries(dynamic raw) {
+    if (raw is! Map) return <String, String>{};
+    final result = <String, String>{};
+    raw.forEach((key, value) {
+      if (value is String) {
+        result[key.toString()] = value;
+      }
+    });
+    return result;
+  }
+
   Future<Map<String, Map<String, String>>> getAdditionalTranslate() async {
     final res = await request(() => get('/home/additional_translate'));
     Map<String, Map<String, String>> result = {};
-    if (res.isSuccess) {
-      result["zh-CN"] = res.data["zh-CN"].cast<String, String>();
-      result["en-US"] = res.data["en-US"].cast<String, String>();
+    if (res.isSuccess && res.data is Map) {
+      final zh = _stringEntries(res.data["zh-CN"]);
+      final en = _stringEntries(res.data["en-US"]);
+      // 两语言均为空（后端无补充翻译或异常兜底响应）时返回空 map，
+      // 让调用方跳过应用与写缓存，避免覆盖掉本地已有的缓存翻译
+      if (zh.isNotEmpty || en.isNotEmpty) {
+        result["zh-CN"] = zh;
+        result["en-US"] = en;
+      }
     }
     return result;
   }
