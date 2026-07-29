@@ -20,10 +20,10 @@ class OverviewController extends GetxController with LogMixin {
   late final scriptModel =
       _scriptModelOverride ?? scriptService.findScriptModel(name)!;
 
-  // 中文注释：历史窗口游标与加载状态；reachedStart 后不再请求更早窗口。
+  // 中文注释：历史窗口游标；reachedStart 后不再请求更早窗口。
+  // 加载中状态用 LogMixin 的 historyLoading（RxBool），UI 据此显示占位动画。
   String? _olderCursor;
   bool _reachedStart = false;
-  bool _historyLoading = false;
 
   // 中文注释：UI 头部被截断或清空后置 true，表示已加载历史失去连续性，
   // 下次顶部触发时丢弃旧游标、从最新窗口重建，避免出现不可恢复的日志断层。
@@ -35,6 +35,11 @@ class OverviewController extends GetxController with LogMixin {
 
   // 中文注释：已加载历史行的稳定 key 集合，用于跨窗口去重。
   final Set<String> _historyLineKeys = <String>{};
+
+  // 中文注释：历史会话世代号，clearLog 时递增。在途请求 await 返回后若世代
+  // 已变，说明响应属于已被清空的旧会话，必须整体丢弃（含游标与失败状态），
+  // 否则旧窗口会绕过已清空的 key 集原样写回新会话。
+  int _historyEpoch = 0;
 
   OverviewController({
     required this.name,
@@ -58,7 +63,7 @@ class OverviewController extends GetxController with LogMixin {
   // 中文注释：存在更早窗口或历史已失效待重建，且没有进行中的请求时允许加载。
   @override
   bool get canLoadOlderLogs =>
-      !_historyLoading &&
+      !historyLoading.value &&
       (_historyStale || (!_reachedStart && _olderCursor != null));
 
   @override
@@ -76,10 +81,12 @@ class OverviewController extends GetxController with LogMixin {
     _historyStale = true;
   }
 
-  // 中文注释：清空日志后旧游标与 key 集全部失效，重置以便重新加载历史。
+  // 中文注释：清空日志后旧游标与 key 集全部失效，重置以便重新加载历史；
+  // 同时推进世代号，使在途请求的响应作废。
   @override
   void clearLog() {
     super.clearLog();
+    _historyEpoch += 1;
     _olderCursor = null;
     _reachedStart = false;
     _historyLineKeys.clear();
@@ -89,7 +96,7 @@ class OverviewController extends GetxController with LogMixin {
 
   // 中文注释：丢弃失效的游标与 key 集，从最新窗口重新建立历史连续性。
   Future<void> _rebuildStaleHistory() async {
-    if (_historyLoading) return;
+    if (historyLoading.value) return;
     _historyStale = false;
     _olderCursor = null;
     _reachedStart = false;
@@ -108,10 +115,13 @@ class OverviewController extends GetxController with LogMixin {
 
   /// 加载最新历史窗口；失败时置 reachedStart 停止本轮 older 请求，不影响实时日志。
   Future<void> loadLatestHistoricalLogs() async {
-    if (_historyLoading) return;
-    _historyLoading = true;
+    if (historyLoading.value) return;
+    historyLoading.value = true;
+    final epoch = _historyEpoch;
     try {
       final window = await _loadLogWindow(name, limitLines: 500);
+      // 中文注释：await 期间发生 clearLog 则丢弃过期窗口，不写回不更新游标。
+      if (epoch != _historyEpoch) return;
       if (window == null) {
         _olderCursor = null;
         _reachedStart = true;
@@ -120,10 +130,14 @@ class OverviewController extends GetxController with LogMixin {
       // 中文注释：latest 窗口需与可见/pending 文本去重，规避 WebSocket 推送重叠。
       _applyHistoricalWindow(window, dedupeAgainstVisibleText: true);
     } catch (_) {
-      _olderCursor = null;
-      _reachedStart = true;
+      // 中文注释：世代已变时失败状态作废，不覆盖新会话的游标。属防御性
+      // 纵深：当前 clearLog 恒置 stale，canLoadOlderLogs 由 stale 短路兜底。
+      if (epoch == _historyEpoch) {
+        _olderCursor = null;
+        _reachedStart = true;
+      }
     } finally {
-      _historyLoading = false;
+      historyLoading.value = false;
     }
   }
 
@@ -132,9 +146,12 @@ class OverviewController extends GetxController with LogMixin {
     if (!canLoadOlderLogs) return;
     final cursor = _olderCursor;
     if (cursor == null) return;
-    _historyLoading = true;
+    historyLoading.value = true;
+    final epoch = _historyEpoch;
     try {
       final window = await _loadLogWindow(name, cursor: cursor, limitLines: 500);
+      // 中文注释：await 期间发生 clearLog 则丢弃过期窗口，不写回不更新游标。
+      if (epoch != _historyEpoch) return;
       if (window == null) {
         _olderCursor = null;
         _reachedStart = true;
@@ -143,10 +160,14 @@ class OverviewController extends GetxController with LogMixin {
       // 中文注释：older 窗口只按行级 key 去重，允许重复文本（如分隔线）共存。
       _applyHistoricalWindow(window, dedupeAgainstVisibleText: false);
     } catch (_) {
-      _olderCursor = null;
-      _reachedStart = true;
+      // 中文注释：世代已变时失败状态作废，不覆盖新会话的游标（防御性，
+      // 同 loadLatestHistoricalLogs 的说明）。
+      if (epoch == _historyEpoch) {
+        _olderCursor = null;
+        _reachedStart = true;
+      }
     } finally {
-      _historyLoading = false;
+      historyLoading.value = false;
     }
   }
 

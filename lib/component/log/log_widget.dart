@@ -88,6 +88,34 @@ class _LogWidgetState extends State<LogWidget> {
   }
 
   @override
+  void didUpdateWidget(covariant LogWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 中文注释：child 从 null 变非 null（如 Logs 切到 Stats）时日志列表即将
+    // 被替换离树，先保存阅读位置；反向切回时列表重新挂载但 initState 的
+    // 一次性滚动回调早已消耗，需在挂载完成后按同样语义恢复——否则列表
+    // 停在最顶端（最老的行），对未运行的脚本没有实时日志来纠正。
+    if (oldWidget.child == null && widget.child != null) {
+      if (_scrollController != null && _scrollController!.hasClients) {
+        widget.controller.saveScrollOffset(_scrollController!.offset);
+      }
+    } else if (oldWidget.child != null && widget.child == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (_scrollController == null || !_scrollController!.hasClients) return;
+        // 中文注释：postFrame 时本帧布局已完成，直接同步跳转即可，
+        // 不经 _scrollLogs 以免再等一帧（切换场景本就无动画诉求）。
+        final position = _scrollController!.position;
+        final target = widget.controller.autoScroll.value
+            ? position.maxScrollExtent
+            : widget.controller.savedScrollOffsetVal
+                .clamp(0.0, position.maxScrollExtent)
+                .toDouble();
+        _scrollController!.jumpTo(target);
+      });
+    }
+  }
+
+  @override
   void deactivate() {
     if (_scrollController != null && _scrollController!.hasClients) {
       widget.controller.saveScrollOffset(_scrollController!.offset);
@@ -125,6 +153,15 @@ class _LogWidgetState extends State<LogWidget> {
       }
       final double currentPos = _scrollController!.offset;
       final double distance = (targetPos - currentPos).abs();
+      // 中文注释：超长距离动画会让 SliverList 把途经的每一行都构建一遍
+      // （实测 500 行滚到底构建 470 行、37 帧掉帧），直接跳转规避。
+      // 阈值用视口相对量以自适应窗口尺寸；阈值内保留平滑动画不影响追尾体验。
+      // 不做 animateTo 那样的 whenComplete 底部矫正：跳转后若 extent 仍增长，
+      // 由下一次 50ms 计时器的 scrollLogs 或 prepend 视口补偿接管。
+      if (distance > _scrollController!.position.viewportDimension * 3) {
+        _scrollController!.jumpTo(targetPos);
+        return;
+      }
       // 使用非线性函数计算动画时间
       // 1000px 约 300ms,10000px 约 1000ms
       int animateMs = (sqrt(distance) * 10).toInt();
@@ -317,13 +354,22 @@ class LogContent extends StatelessWidget {
           onUserScroll();
           return false;
         },
-        child: Obx(() => ListView.builder(
-              controller: scrollController,
-              itemCount: controller.logs.length,
-              itemBuilder: (context, index) => Padding(
+        child: Obx(() {
+          final list = ListView.builder(
+            controller: scrollController,
+            // 中文注释：给出等高原型让 SliverList 用常数时间换算 offset↔index，
+            // 否则跳转/视口补偿要从头逐行累加高度（实测 500 行滚到底会构建
+            // 470 行、单帧冻结数百毫秒）。原型必须与真实行同构且命中高亮
+            // pattern：实测 bodySmall 下命中行高 22px、未命中行与普通 Text
+            // 仅 18px，取最高形态保证任何真实行不会高于原型而被裁切。
+            // 原型只用于量高不参与绘制，但仍会建语义节点，故排除以免屏幕
+            // 阅读器读出这条不存在的日志；selectable 必须与真实行保持一致，
+            // 否则渲染路径不同会改变行高。
+            prototypeItem: ExcludeSemantics(
+              child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 1),
                 child: EasyRichText(
-                  controller.logs[index],
+                  'INFO: 00:00:00.000 prototype\n',
                   patternList: _buildPatterns(),
                   selectable: true,
                   maxLines: 1,
@@ -331,7 +377,43 @@ class LogContent extends StatelessWidget {
                   defaultStyle: _selectStyle(context),
                 ),
               ),
-            ).paddingAll(10)),
+            ),
+            itemCount: controller.logs.length,
+            itemBuilder: (context, index) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 1),
+              child: EasyRichText(
+                controller.logs[index],
+                patternList: _buildPatterns(),
+                selectable: true,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                defaultStyle: _selectStyle(context),
+              ),
+            ),
+          ).paddingAll(10);
+          // 中文注释：仅在没有任何日志可展示时显示占位；懒加载更早窗口 /
+          // stale 重建时用户可能正在阅读，不遮挡已有列表。
+          if (!controller.historyLoading.value || controller.logs.isNotEmpty) {
+            return list;
+          }
+          // 中文注释：占位叠加而非替换列表——替换会让 ScrollController 失去
+          // clients，吞掉 initState 的一次性滚底回调与首批历史的视口补偿。
+          // 尺寸与 StatsOverviewPanel 的加载态一致（28×28 + strokeWidth 2.6）。
+          // spinner 中心 28×28 会吸收指针事件，但该状态下列表必为空、无可滚动
+          // 内容，且日志一到达占位即消失，不影响交互。
+          return Stack(
+            children: [
+              list,
+              const Center(
+                child: SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: CircularProgressIndicator(strokeWidth: 2.6),
+                ),
+              ),
+            ],
+          );
+        }),
       ),
     ).constrained(width: double.infinity, height: double.infinity);
   }

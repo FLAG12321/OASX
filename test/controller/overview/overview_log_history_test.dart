@@ -163,7 +163,7 @@ void main() {
     ));
     await Future.wait([first, second]);
 
-    // 中文注释：latest 一次 + older 一次；第二次 older 触发被 _historyLoading 拒绝。
+    // 中文注释：latest 一次 + older 一次；第二次 older 触发被 historyLoading 拒绝。
     expect(calls, 2);
   });
 
@@ -272,5 +272,126 @@ void main() {
 
     expect(cursors, [null, null]);
     expect(controller.logs, ['INFO: history\n']);
+  });
+
+  // 中文注释：锁定 historyLoading 在加载期间为 true、完成后复位，UI 占位据此显示/消失。
+  test('historyLoading toggles around latest window load', () async {
+    final gate = Completer<ScriptLogWindow?>();
+    final controller = OverviewController(
+      name: 'oas1',
+      scriptModelOverride: ScriptModel('oas1'),
+      loadLogWindow: (_, {cursor, limitLines = 500}) => gate.future,
+    );
+
+    expect(controller.historyLoading.value, isFalse);
+
+    final future = controller.loadLatestHistoricalLogs();
+    expect(controller.historyLoading.value, isTrue);
+
+    gate.complete(const ScriptLogWindow(
+      lines: [ScriptLogLine(key: 'k1', text: 'INFO: history\n')],
+      olderCursor: null,
+      liveCursor: null,
+      reachedStart: true,
+    ));
+    await future;
+
+    expect(controller.historyLoading.value, isFalse);
+    expect(controller.logs, ['INFO: history\n']);
+  });
+
+  // 中文注释：锁定加载抛异常时 historyLoading 同样复位，占位动画不会卡死。
+  // 用 gate 确认异常前确实置位过，避免写成「任何实现下都通过」的空转测试。
+  test('historyLoading resets when loading throws', () async {
+    final gate = Completer<ScriptLogWindow?>();
+    final controller = OverviewController(
+      name: 'oas1',
+      scriptModelOverride: ScriptModel('oas1'),
+      loadLogWindow: (_, {cursor, limitLines = 500}) => gate.future,
+    );
+
+    final future = controller.loadLatestHistoricalLogs();
+    expect(controller.historyLoading.value, isTrue);
+
+    gate.completeError(StateError('boom'));
+    await future;
+
+    expect(controller.historyLoading.value, isFalse);
+    expect(controller.canLoadOlderLogs, isFalse,
+        reason: 'catch 分支置 reachedStart 停止本轮，与 historyLoading 复位相互独立');
+  });
+
+  // 中文注释：锁定加载途中 clearLog 的竞态防护——过期窗口整体丢弃，
+  // 否则 key 集已清空导致去重失效，旧会话 500 行会原样写回新会话上方。
+  test('clearLog during in-flight load discards stale window', () async {
+    final gate = Completer<ScriptLogWindow?>();
+    var calls = 0;
+    final controller = OverviewController(
+      name: 'oas1',
+      scriptModelOverride: ScriptModel('oas1'),
+      loadLogWindow: (_, {cursor, limitLines = 500}) {
+        calls += 1;
+        if (calls == 1) return gate.future;
+        return Future.value(const ScriptLogWindow(
+          lines: [ScriptLogLine(key: 'new', text: 'INFO: new session\n')],
+          olderCursor: null,
+          liveCursor: null,
+          reachedStart: true,
+        ));
+      },
+    );
+
+    final future = controller.loadLatestHistoricalLogs();
+    // 中文注释：模拟请求在途时用户清空日志（点删除或启动脚本）。
+    controller.clearLog();
+    gate.complete(const ScriptLogWindow(
+      lines: [ScriptLogLine(key: 'old', text: 'INFO: old session\n')],
+      olderCursor: 'stale-cursor',
+      liveCursor: null,
+      reachedStart: false,
+    ));
+    await future;
+
+    // 中文注释：过期窗口未写回，游标也未被过期响应覆盖（stale 状态保留）。
+    expect(controller.logs, isEmpty);
+    expect(controller.canLoadOlderLogs, isTrue,
+        reason: 'clearLog 置 stale，加载结束后应可重新加载');
+
+    await controller.loadOlderLogs();
+    expect(controller.logs, ['INFO: new session\n']);
+  });
+
+  // 中文注释：锁定加载途中 clearLog 后请求失败的场景——新会话可正常重建。
+  // 注：catch 分支的 epoch 判断属防御性纵深，当前 clearLog 恒置 stale 使
+  // canLoadOlderLogs 短路，本用例只锁定「失败不破坏新会话」这一弱语义。
+  test('failure of stale in-flight load does not poison new session', () async {
+    final gate = Completer<ScriptLogWindow?>();
+    var calls = 0;
+    final controller = OverviewController(
+      name: 'oas1',
+      scriptModelOverride: ScriptModel('oas1'),
+      loadLogWindow: (_, {cursor, limitLines = 500}) {
+        calls += 1;
+        if (calls == 1) return gate.future;
+        return Future.value(const ScriptLogWindow(
+          lines: [ScriptLogLine(key: 'new', text: 'INFO: new session\n')],
+          olderCursor: null,
+          liveCursor: null,
+          reachedStart: true,
+        ));
+      },
+    );
+
+    final future = controller.loadLatestHistoricalLogs();
+    controller.clearLog();
+    gate.completeError(StateError('boom'));
+    await future;
+
+    expect(controller.historyLoading.value, isFalse);
+    expect(controller.canLoadOlderLogs, isTrue,
+        reason: '过期请求的失败不应关闭新会话的重建入口');
+
+    await controller.loadOlderLogs();
+    expect(controller.logs, ['INFO: new session\n']);
   });
 }

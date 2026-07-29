@@ -27,6 +27,10 @@ mixin LogMixin on GetxController {
   /// collapse log content
   final collapseLog = false.obs;
 
+  /// 历史日志加载中；由支持历史加载的子类维护，UI 据此显示加载占位动画。
+  /// 置位与复位（含失败路径的 finally）都由子类负责，基类不自动复位。
+  final historyLoading = false.obs;
+
   /// logs buffer, used to limit speeded log refresh
   final _pendingLogs = <String>[];
 
