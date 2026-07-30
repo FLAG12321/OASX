@@ -146,11 +146,13 @@ class NavCtrl extends GetxController {
   Future<void> renameConfig(String oldName, String newName) async {
     final int idx = navNameList.indexOf(oldName);
     if (idx == -1) return;
-    // 删旧前先捕获自启标记，rename 语义下走显式原子迁移
-    // （deleteScriptModel 内部也会移除自启标记，但 try/catch 吞异常可能半迁移，
-    // 故此处不依赖副作用，迁移步骤在末尾用 updateAutoScript 显式完成）
+    // 删旧前先捕获自启标记与延时，rename 语义下走显式原子迁移
+    // （deleteScriptModel 内部也会移除自启条目，但 try/catch 吞异常可能半迁移，
+    // 故此处不依赖副作用，迁移步骤在末尾显式完成）
     final scriptService = Get.find<ScriptService>();
-    final hadAutoRun = scriptService.autoScriptList.contains(oldName);
+    final autoBoot = Get.find<AutoBootService>();
+    final hadAutoRun = autoBoot.isSelected(oldName);
+    final oldDelay = autoBoot.delayOf(oldName);
     // rename remote config
     if (!await ApiClient().renameConfig(oldName, newName)) return;
     // rename local config
@@ -169,10 +171,11 @@ class NavCtrl extends GetxController {
       scriptService.addScriptModel(newName);
     }
     // 显式原子迁移：先移除旧名（若 deleteScriptModel 副作用未生效则补一次），
-    // 再添加新名，保证 autoScriptList 不出现 oldName+newName 同时残留
+    // 再添加新名并还原延时，保证条目不出现 oldName+newName 同时残留
     if (hadAutoRun) {
-      scriptService.updateAutoScript(oldName, false);
-      scriptService.updateAutoScript(newName, true);
+      autoBoot.removeEntry(oldName);
+      autoBoot.setSelected(newName, true);
+      autoBoot.setDelay(newName, oldDelay);
     }
   }
 }
