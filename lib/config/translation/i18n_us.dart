@@ -32,7 +32,10 @@ final Map<String, String> _us_ui = {
   I18n.autoRunScriptConfig: 'Auto Run Script Config',
   I18n.startSuccess: 'started successfully',
   I18n.oasxAutoStartSettings: 'OASX Autostart Settings',
-  I18n.autoRunScriptLoginHint: 'Log in to configure auto-run scripts',
+  I18n.autoRunScriptServerHint:
+      'Start the server to configure auto-run scripts',
+  I18n.autoRunScriptDelayLabel: 'Delay (s)',
+  I18n.autoRunScriptRefresh: 'Refresh',
 };
 
 final Map<String, String> _us_script = {

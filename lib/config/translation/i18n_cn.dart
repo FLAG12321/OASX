@@ -93,7 +93,9 @@ final Map<String, String> _cn_ui = {
   I18n.autoRunScriptConfig: '自动启动脚本配置',
   I18n.startSuccess: '已启动',
   I18n.oasxAutoStartSettings: 'OASX自启动设置',
-  I18n.autoRunScriptLoginHint: '登录后可配置自动启动脚本',
+  I18n.autoRunScriptServerHint: '启动 server 后可配置自动启动脚本',
+  I18n.autoRunScriptDelayLabel: '延时(秒)',
+  I18n.autoRunScriptRefresh: '刷新',
 };
 
 final Map<String, String> _cn_menu = {

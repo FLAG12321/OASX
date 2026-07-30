@@ -8,14 +8,13 @@ import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:oasx/config/translation/i18n_content.dart';
 import 'package:oasx/model/const/storage_key.dart';
+import 'package:oasx/service/auto_boot_service.dart';
 import 'package:oasx/service/auto_start_service.dart';
-import 'package:oasx/service/script_service.dart';
-import 'package:oasx/service/websocket_service.dart';
 import 'package:oasx/views/server/auto_start_settings.dart';
 
 // 中文注释：测试 Server 页「OASX自启动设置」内容区 AutoStartSettingsContent。
-// 两个 service 均用 no-op onInit 的 fake 子类，避免测试机上真实执行
-// schtasks / PackageInfo / HTTP 与 5×500ms 轮询（pending Timer 会使测试必败）。
+// AutoStartService 用 no-op onInit 的 fake 子类，避免测试机上真实执行
+// schtasks / PackageInfo；server 探测与脚本列表经构造参数注入，隔离真实 HTTP。
 
 // fake：覆写 onInit 跳过 PackageInfo 读取与 schtasks refresh；
 // 覆写 updateLaunchAtStartupEnable 结构性阻断真实 schtasks 执行，并记录调用
@@ -31,18 +30,6 @@ class _FakeAutoStartService extends AutoStartService {
   Future<void> updateLaunchAtStartupEnable(bool enabled) async {
     updateCalls.add(enabled);
   }
-}
-
-// fake：覆写 onInit/onClose 跳过真实 HTTP、就绪轮询与 websocket 收尾
-class _FakeScriptService extends ScriptService {
-  // 故意不调 super：super.onInit 正是要跳过的真实副作用
-  @override
-  // ignore: must_call_super
-  Future<void> onInit() async {}
-
-  @override
-  // ignore: must_call_super
-  Future<void> onClose() async {}
 }
 
 void main() {
@@ -62,79 +49,86 @@ void main() {
 
   setUp(() async {
     await GetStorage().remove(StorageKey.autoScriptList.name);
-    // 公共 setUp：内容区无条件渲染开机自启开关，故每个用例都需注册 fake
+    // 公共 setUp：内容区无条件渲染开机自启开关，故每个用例都需注册 fake；
+    // 自启条目数据源为 AutoBootService（loadEntries 重置为存储当前值）
     Get.put<AutoStartService>(_FakeAutoStartService(), permanent: true);
+    Get.put<AutoBootService>(AutoBootService()..loadEntries(),
+        permanent: true);
   });
 
   tearDown(() async {
     // 逐个清理注册，避免用例间状态泄漏
     await Get.delete<AutoStartService>(force: true);
-    if (Get.isRegistered<ScriptService>()) {
-      await Get.delete<ScriptService>(force: true);
-    }
-    if (Get.isRegistered<WebSocketService>()) {
-      await Get.delete<WebSocketService>(force: true);
-    }
+    await Get.delete<AutoBootService>(force: true);
   });
 
   // 中文注释：ListTile 系需要 Material 祖先；.tr 未加载翻译时回退键值（即英文文案），
-  // 断言统一用 I18n 常量匹配
-  Future<void> pumpContent(WidgetTester tester) async {
-    await tester.pumpWidget(const MaterialApp(
+  // 断言统一用 I18n 常量匹配。探测结果与脚本列表经构造参数注入
+  Future<void> pumpContent(WidgetTester tester,
+      {required bool reachable, List<String> scripts = const []}) async {
+    await tester.pumpWidget(MaterialApp(
       home: Scaffold(
-        body: SingleChildScrollView(child: AutoStartSettingsContent()),
+        body: SingleChildScrollView(
+          child: AutoStartSettingsContent(
+            probeBackend: () async => reachable,
+            fetchScripts: () async => scripts,
+          ),
+        ),
       ),
     ));
+    // 等待探测 Future 完成、进度条消失
+    await tester.pumpAndSettle();
   }
 
-  // 注册 fake ScriptService（其字段初始化依赖已注册的 WebSocketService）
-  ScriptService putFakeScriptService() {
-    if (!Get.isRegistered<WebSocketService>()) {
-      Get.put<WebSocketService>(WebSocketService(), permanent: true);
-    }
-    return Get.put<ScriptService>(_FakeScriptService(), permanent: true);
-  }
-
-  testWidgets('ScriptService 未注册时渲染登录提示、不渲染脚本多选',
+  testWidgets('server 不可达时渲染启动提示、不渲染脚本多选',
       (WidgetTester tester) async {
-    await pumpContent(tester);
+    await pumpContent(tester, reachable: false);
 
-    expect(find.text(I18n.autoRunScriptLoginHint), findsOneWidget);
+    expect(find.text(I18n.autoRunScriptServerHint), findsOneWidget);
     expect(find.byType(CheckboxListTile), findsNothing);
     // 开机自启开关始终渲染
     expect(find.byType(SwitchListTile), findsOneWidget);
   });
 
-  testWidgets('已注册时渲染脚本多选，勾选触发 updateAutoScript 并持久化',
+  testWidgets('可达时渲染脚本列表，勾选持久化新格式并启用延时输入',
       (WidgetTester tester) async {
-    final service = putFakeScriptService();
-    service.addScriptModel('oas1');
-    service.addScriptModel('oas2');
-
-    await pumpContent(tester);
-
-    expect(find.text(I18n.autoRunScriptLoginHint), findsNothing);
+    await pumpContent(tester, reachable: true, scripts: ['oas1', 'oas2']);
+    expect(find.text(I18n.autoRunScriptServerHint), findsNothing);
     expect(find.byType(CheckboxListTile), findsNWidgets(2));
 
-    // 勾选 oas1 → autoScriptList 更新并写入 GetStorage
+    // 勾选 oas1 → AutoBootService 条目新增并按新格式持久化
     await tester.tap(find.text('oas1'));
     await tester.pump();
-    expect(service.autoScriptList, ['oas1']);
-    expect(GetStorage().read(StorageKey.autoScriptList.name),
-        jsonEncode(['oas1']));
+    final autoBoot = Get.find<AutoBootService>();
+    expect(autoBoot.isSelected('oas1'), isTrue);
+    expect(jsonDecode(GetStorage().read(StorageKey.autoScriptList.name)), [
+      {'name': 'oas1', 'delaySeconds': 0}
+    ]);
 
-    // 取消勾选 → 移除并持久化
+    // 修改延时 → 持久化延时值（key 含勾选态：已勾选为 _true）
+    await tester.enterText(
+        find.byKey(const ValueKey('delay_oas1_true')), '30');
+    await tester.pump();
+    expect(autoBoot.delayOf('oas1'), 30);
+
+    // 未勾选脚本的延时输入禁用
+    final oas2Field = tester
+        .widget<TextFormField>(find.byKey(const ValueKey('delay_oas2_false')));
+    expect(oas2Field.enabled, isFalse);
+
+    // 取消勾选 → 条目移除并持久化
     await tester.tap(find.text('oas1'));
     await tester.pump();
-    expect(service.autoScriptList, isEmpty);
-    expect(GetStorage().read(StorageKey.autoScriptList.name), jsonEncode([]));
+    expect(autoBoot.isSelected('oas1'), isFalse);
+    expect(
+        jsonDecode(GetStorage().read(StorageKey.autoScriptList.name)), isEmpty);
   });
 
   testWidgets('isApplying 为 true 时开机自启开关禁用', (WidgetTester tester) async {
     final autoStart = Get.find<AutoStartService>();
     autoStart.isApplying.value = true;
 
-    await pumpContent(tester);
+    await pumpContent(tester, reachable: false);
 
     final switchTile =
         tester.widget<SwitchListTile>(find.byType(SwitchListTile));
@@ -145,7 +139,7 @@ void main() {
       (WidgetTester tester) async {
     final autoStart = Get.find<AutoStartService>() as _FakeAutoStartService;
 
-    await pumpContent(tester);
+    await pumpContent(tester, reachable: false);
 
     // fake 已阻断真实 schtasks，tap 仅记录调用入参
     await tester.tap(find.byType(SwitchListTile));
