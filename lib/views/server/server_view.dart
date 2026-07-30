@@ -6,12 +6,12 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:oasx/component/log/log_mixin.dart';
 import 'package:oasx/component/log/log_widget.dart';
-import 'package:process_run/shell.dart';
 import 'dart:io';
 import 'package:styled_widget/styled_widget.dart';
 // code_editor 已移除，使用原生 TextField 替代
 
 import 'package:oasx/config/translation/i18n_content.dart';
+import 'package:oasx/service/server_launcher.dart';
 import 'package:oasx/utils/platform_utils.dart';
 import 'package:oasx/views/layout/appbar.dart';
 import 'package:oasx/views/server/auto_start_settings.dart';

@@ -7,18 +7,14 @@ class ServerController extends GetxController with LogMixin {
 
   final log = ''.obs;
   final deployContent = ''.obs;
-  Shell? shell;
-  var shellController = ShellLinesController();
+  // server 拉起器实例：重复启动前先 kill 旧实例，避免旧命令进程残留
+  ServerLauncher? _launcher;
 
   @override
   void onInit() {
     rootPathServer.value =
         Get.find<SettingsController>().storage.read('rootPathServer') ??
             'Please set OAS root path';
-    shell = getShell;
-    shellController.stream.listen((event) {
-      addLog('INFO: $event');
-    });
     rootPathAuthenticated.value = authenticatePath(rootPathServer.value);
     if (rootPathAuthenticated.value) {
       readDeploy();
@@ -34,7 +30,6 @@ class ServerController extends GetxController with LogMixin {
     }
     // value = value.replaceAll('\\', '\\\\');
     rootPathServer.value = value;
-    shell = getShell;
     Get.find<SettingsController>()
         .storage
         .write('rootPathServer', rootPathServer.value);
@@ -43,77 +38,26 @@ class ServerController extends GetxController with LogMixin {
     }
   }
 
+  // 目录结构校验逻辑已抽至 ServerLauncher（与开机自启自动流程共用）
   bool authenticatePath(String root) {
-    root.replaceAll('\\', '/');
-    try {
-      // 先是判断根目录
-      Directory rootDir = Directory(root);
-      if (!rootDir.existsSync()) {
-        return false;
-      }
-      // 然后是判断python是否存在
-      File python = File('${rootDir.path}/toolkit/python.exe');
-      if (!python.existsSync()) {
-        return false;
-      }
-      // 然后判断git是否存在
-      File git = File('${rootDir.path}/toolkit/Git/cmd/git.exe');
-      if (!git.existsSync()) {
-        return false;
-      }
-      // 然后判断安装器是否存在
-      File installer = File('${rootDir.path}/deploy/installer.py');
-      if (!installer.existsSync()) {
-        return false;
-      }
-      // 然后判断deploy是否存在
-      File deploy = File('${rootDir.path}/config/deploy.yaml');
-      if (!deploy.existsSync()) {
-        return false;
-      }
-    } catch (e) {
-      printError(info: e.toString());
-      return false;
-    }
-
-    return true;
-  }
-
-  String get pathGit => '${rootPathServer.value}\\toolkit\\Git\\mingw64\\bin"';
-  String get pathPython => '${rootPathServer.value}\\toolkit';
-  String get pathAdb =>
-      '${rootPathServer.value}\\toolkit\\Lib\\site-packages\\adbutils\\binaries';
-  String get pathScripts => '${rootPathServer.value}\\toolkit\\Scripts';
-  Map<String, String> get pathPATH => {
-        'PATH':
-            '${rootPathServer.value},$pathGit,$pathPython,$pathAdb,$pathScripts'
-      };
-  Shell get getShell => Shell(
-        workingDirectory: rootPathServer.value,
-        runInShell: true,
-        environment: pathPATH,
-        stdout: shellController.sink,
-        verbose: false,
-      );
-
-  Future<void> runShell(String command) async {
-    try {
-      var result = await shell!.run(command);
-      printInfo(info: result.errText);
-    } on ShellException catch (e) {
-      addLog('ERROR: ${e.toString()}');
-    }
+    return ServerLauncher.validatePath(root);
   }
 
   void run() {
     clearLog();
-    shell!.kill();
-    runShell('echo OAS working directory: ').then((value) => null);
-    runShell('pwd').then((value) => null);
-    runShell('python -m deploy.installer').then((value) => null);
-    runShell('echo Start OAS').then((value) => null);
-    runShell('taskkill /f /t /im pythonw.exe').then((value) => null);
-    runShell(".\\toolkit\\pythonw.exe  server.py").then((value) => null);
+    // 拉起逻辑抽至 ServerLauncher，与开机自启自动流程共用；日志仍回本页。
+    // 替换前 dispose 旧实例，避免其 shell 命令与日志流监听残留
+    _launcher?.dispose();
+    _launcher = ServerLauncher(rootPath: rootPathServer.value, onLog: addLog);
+    _launcher!.launch();
+  }
+
+  @override
+  void onClose() {
+    // 控制器销毁时释放拉起器资源（在途命令 + 日志流）
+    _launcher?.dispose();
+    _launcher = null;
+    super.onClose();
   }
 
   void readDeploy() {
