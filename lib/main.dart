@@ -7,6 +7,7 @@ import 'package:oasx/service/locale_service.dart';
 import 'package:oasx/service/theme_service.dart';
 import 'package:oasx/service/websocket_service.dart';
 import 'package:oasx/service/window_service.dart';
+import 'package:oasx/service/auto_boot_service.dart';
 import 'package:oasx/service/auto_start_service.dart';
 import 'package:oasx/utils/logger.dart';
 import 'package:responsive_builder/responsive_builder.dart';
@@ -17,9 +18,17 @@ import 'package:oasx/utils/platform_utils.dart';
 import 'package:oasx/controller/settings.dart';
 import 'package:oasx/config/theme.dart' show lightTheme, darkTheme;
 
-void main() async {
+void main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
   await initService();
+  // 开机自启拉起（注册项携带 --autostart）时标记自动流程（spec §4.2）；
+  // 参数须在首帧（LoginController.onInit）前就位，流程触发放首帧后，
+  // 确保 GetMaterialApp 路由可用
+  Get.find<AutoBootService>().hasAutostartArg =
+      args.contains(AutoStartService.autostartArgument);
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    Get.find<AutoBootService>().start();
+  });
 
   runApp(
     DevicePreview(
@@ -86,6 +95,10 @@ Future<void> initService() async {
   if (PlatformUtils.isDesktop) {
     Get.putAsync(() async => AutoStartService(), permanent: true);
   }
+
+  // 自启配置状态所有平台可用（配置面板登录前即需数据源）；
+  // 自动流程本身仅桌面且 --autostart 时执行
+  Get.put<AutoBootService>(AutoBootService()..loadEntries(), permanent: true);
 
   Get.lazyPut(() => WebSocketService());
 }

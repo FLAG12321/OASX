@@ -1,6 +1,7 @@
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:oasx/api/api_client.dart';
+import 'package:oasx/service/auto_boot_service.dart';
 import 'package:oasx/service/script_service.dart';
 import 'package:oasx/config/translation/i18n_content.dart';
 import 'package:oasx/views/nav/view_nav.dart';
@@ -37,6 +38,11 @@ class SettingsController extends GetxController {
   Future<void> killServer() async {
     final success = await ApiClient().killServer();
     if (success) {
+      // 先取消自动流程未触发的延时启动（spec §5：killServer 后不再调度），
+      // 再走路由跳转与服务注销，避免 await 期间 Timer 到点启动脚本
+      if (Get.isRegistered<AutoBootService>()) {
+        Get.find<AutoBootService>().cancelScheduled();
+      }
       Get.snackbar(I18n.kill_server_success.tr, '');
       Get.offAllNamed('/login');
       await Future.wait([

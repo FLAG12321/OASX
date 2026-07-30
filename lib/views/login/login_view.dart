@@ -8,6 +8,7 @@ import 'package:styled_widget/styled_widget.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 
 import 'package:oasx/api/api_client.dart';
+import 'package:oasx/service/auto_boot_service.dart';
 import 'package:oasx/views/layout/appbar.dart';
 import 'package:oasx/utils/platform_utils.dart';
 

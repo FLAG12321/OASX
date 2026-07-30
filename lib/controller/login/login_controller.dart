@@ -14,7 +14,18 @@ class LoginController extends GetxController {
     password.value = storage.read(StorageKey.password.name) ?? "";
     address.value = storage.read(StorageKey.address.name) ?? "";
 
-    if (address.value.isNotEmpty && !logined) {
+    // 自动流程激活时让位（server 可能未起，此时自动登录必然失败弹错；
+    // 登录跳转时机由 AutoBootService 全权掌控，spec §4.2）。
+    // 用静态触发条件判断而非流程状态，消除首帧前后的时序竞态
+    final autoBoot = Get.isRegistered<AutoBootService>()
+        ? Get.find<AutoBootService>()
+        : null;
+    final autoBootActive = autoBoot != null &&
+        AutoBootService.shouldAutoBoot(
+            hasAutostartArg: autoBoot.hasAutostartArg,
+            isDesktop: PlatformUtils.isDesktop,
+            entryCount: autoBoot.autoScriptEntries.length);
+    if (address.value.isNotEmpty && !logined && !autoBootActive) {
       logined = true;
       await login(address.value);
     }

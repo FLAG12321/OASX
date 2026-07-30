@@ -95,6 +95,20 @@ class ApiClient {
     return res.isSuccess && res.data == 'success';
   }
 
+  // 静默探测：不弹网络错误 snackbar，供开机自启轮询与自启配置面板使用
+  // （spec §5：轮询期间与面板探测失败均不得刷屏错误提示）
+  Future<bool> testAddressSilent() async {
+    try {
+      final res = await get('/test');
+      return res.when(
+        success: (data) => data == 'success',
+        failure: (msg, code) => false,
+      );
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<bool> killServer() async {
     final res = await request(() => get('/home/kill_server'));
     return res.isSuccess && res.data == 'success';

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:oasx/model/const/storage_key.dart';
@@ -10,6 +11,10 @@ import 'package:package_info_plus/package_info_plus.dart';
 
 class AutoStartService extends GetxService {
   final _storage = GetStorage();
+
+  // 开机自启拉起 OASX 的标识参数：注册项写入、main() 解析，两端必须一致。
+  // 已有用户需重新关开一次「开机自启」开关，注册项才会带上参数（spec §4.1）
+  static const String autostartArgument = '--autostart';
 
   final enableLaunchAtStartup = false.obs;
   final isApplying = false.obs;
@@ -84,7 +89,7 @@ class AutoStartService extends GetxService {
       final xmlFile =
           File('${Directory.systemTemp.path}\\${_windowsTaskName}_task.xml');
       try {
-        await xmlFile.writeAsString(_buildWindowsTaskXml());
+        await xmlFile.writeAsString(buildWindowsTaskXml());
         await _runWindowsElevated([
           '/Create',
           '/XML',
@@ -124,7 +129,9 @@ class AutoStartService extends GetxService {
     return 'OASX';
   }
 
-  String _buildWindowsTaskXml() {
+  // 构造 Windows 计划任务 XML（@visibleForTesting 供锁定 --autostart 参数）
+  @visibleForTesting
+  String buildWindowsTaskXml() {
     final exe = _xmlEscape(Platform.resolvedExecutable);
     return '''<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
   <Triggers>
@@ -160,6 +167,7 @@ class AutoStartService extends GetxService {
   <Actions Context="Author">
     <Exec>
       <Command>$exe</Command>
+      <Arguments>$autostartArgument</Arguments>
     </Exec>
   </Actions>
 </Task>''';
@@ -174,7 +182,7 @@ class AutoStartService extends GetxService {
     if (enabled) {
       await file.parent.create(recursive: true);
       await file.writeAsString(
-        _buildMacPlist(),
+        buildMacPlist(),
         encoding: utf8,
       );
       return true;
@@ -192,7 +200,9 @@ class AutoStartService extends GetxService {
     return '$home/Library/LaunchAgents/$label.plist';
   }
 
-  String _buildMacPlist() {
+  // 构造 macOS LaunchAgent plist（@visibleForTesting 命名与 Windows 一致）
+  @visibleForTesting
+  String buildMacPlist() {
     final label = '$_packageName.autostart';
     final executable = _xmlEscape(Platform.resolvedExecutable);
     return '''
@@ -205,6 +215,7 @@ class AutoStartService extends GetxService {
     <key>ProgramArguments</key>
     <array>
       <string>$executable</string>
+      <string>$autostartArgument</string>
     </array>
     <key>RunAtLoad</key>
     <true/>
@@ -235,7 +246,7 @@ class AutoStartService extends GetxService {
     if (enabled) {
       await file.parent.create(recursive: true);
       await file.writeAsString(
-        _buildLinuxDesktopEntry(),
+        buildLinuxDesktopEntry(),
         encoding: utf8,
       );
       return true;
@@ -255,7 +266,9 @@ class AutoStartService extends GetxService {
     return '$base/autostart/$_packageName.desktop';
   }
 
-  String _buildLinuxDesktopEntry() {
+  // 构造 Linux autostart 桌面项（@visibleForTesting 命名与 Windows 一致）
+  @visibleForTesting
+  String buildLinuxDesktopEntry() {
     final executable = _escapeDesktopExec(Platform.resolvedExecutable);
     final name = _appName;
     return '''
@@ -263,7 +276,7 @@ class AutoStartService extends GetxService {
 Type=Application
 Version=1.0
 Name=$name
-Exec=$executable
+Exec=$executable $autostartArgument
 Terminal=false
 X-GNOME-Autostart-enabled=true
 ''';
