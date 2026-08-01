@@ -1,11 +1,14 @@
-#include "flutter_window.h"
+﻿#include "flutter_window.h"
 
 #include <optional>
 
 #include "flutter/generated_plugin_registrant.h"
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
-    : project_(project) {}
+    : project_(project) {
+  // 注册“唤醒已有实例”窗口消息，与 main.cpp 同名注册，同会话返回同一 ID。
+  activate_message_ = ::RegisterWindowMessageW(kOasxActivateWindowMessage);
+}
 
 FlutterWindow::~FlutterWindow() {}
 
@@ -59,6 +62,18 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
     if (result) {
       return *result;
     }
+  }
+
+  // 被第二实例唤醒：还原（若最小化）+ 置前 + 聚焦，绕开 Windows 前台锁。
+  if (activate_message_ != 0 && message == activate_message_) {
+    if (::IsIconic(hwnd)) {
+      ::ShowWindow(hwnd, SW_RESTORE);
+    } else {
+      ::ShowWindow(hwnd, SW_SHOW);
+    }
+    ::SetForegroundWindow(hwnd);
+    ::SetFocus(hwnd);
+    return 0;
   }
 
   switch (message) {

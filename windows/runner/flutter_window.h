@@ -1,4 +1,4 @@
-#ifndef RUNNER_FLUTTER_WINDOW_H_
+﻿#ifndef RUNNER_FLUTTER_WINDOW_H_
 #define RUNNER_FLUTTER_WINDOW_H_
 
 #include <flutter/dart_project.h>
@@ -7,6 +7,9 @@
 #include <memory>
 
 #include "win32_window.h"
+
+// 唤醒已有单实例的窗口消息名（与 main.cpp 同名注册，同会话返回同一消息 ID）。
+constexpr wchar_t kOasxActivateWindowMessage[] = L"OASX.ActivateExistingWindow";
 
 // A window that does nothing but host a Flutter view.
 class FlutterWindow : public Win32Window {
@@ -28,6 +31,9 @@ class FlutterWindow : public Win32Window {
 
   // The Flutter instance hosted by this window.
   std::unique_ptr<flutter::FlutterViewController> flutter_controller_;
+
+  // 已注册的“唤醒已有实例”窗口消息 ID（0 表示注册失败，此时忽略该消息）。
+  UINT activate_message_ = 0;
 };
 
 #endif  // RUNNER_FLUTTER_WINDOW_H_

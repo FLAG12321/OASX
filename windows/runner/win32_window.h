@@ -1,4 +1,4 @@
-#ifndef RUNNER_WIN32_WINDOW_H_
+﻿#ifndef RUNNER_WIN32_WINDOW_H_
 #define RUNNER_WIN32_WINDOW_H_
 
 #include <windows.h>
@@ -6,6 +6,9 @@
 #include <functional>
 #include <memory>
 #include <string>
+
+// 返回本运行器注册的 Win32 窗口类名，供单实例检测定位已有窗口。
+const wchar_t* GetRunnerWindowClassName();
 
 // A class abstraction for a high DPI-aware Win32 Window. Intended to be
 // inherited from by classes that wish to specialize with custom

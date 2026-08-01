@@ -55,6 +55,10 @@ void EnableFullDpiSupportIfAvailable(HWND hwnd) {
 
 }  // namespace
 
+const wchar_t* GetRunnerWindowClassName() {
+  return kWindowClassName;
+}
+
 // Manages the Win32Window's window class registration.
 class WindowClassRegistrar {
  public:
