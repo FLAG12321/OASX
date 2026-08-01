@@ -413,7 +413,7 @@ class _MultiAccountStatsPageState extends State<MultiAccountStatsPage> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    '时间范围',
+                    I18n.multiStatsTimeRange.tr,
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(
                           color: scheme.onSurfaceVariant,
                         ),
@@ -677,9 +677,12 @@ class _TaskDropdown extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasSelection = selectedTask != null && selectedTask!.isNotEmpty;
     final items = <DropdownMenuItem<String?>>[
-      const DropdownMenuItem<String?>(
+      DropdownMenuItem<String?>(
         value: null,
-        child: Text('（总耗时）', style: TextStyle(fontSize: 13)),
+        child: Text(
+          I18n.multiStatsTotalOption.tr,
+          style: const TextStyle(fontSize: 13),
+        ),
       ),
       ...taskKeys.map(
         (name) => DropdownMenuItem<String?>(
@@ -728,9 +731,12 @@ class _SessionDropdown extends StatelessWidget {
         value: validValue,
         isDense: true,
         items: [
-          const DropdownMenuItem<int?>(
+          DropdownMenuItem<int?>(
             value: null,
-            child: Text('全天', style: TextStyle(fontSize: 13)),
+            child: Text(
+              I18n.multiStatsAllDay.tr,
+              style: const TextStyle(fontSize: 13),
+            ),
           ),
           ...sessions.map(
             (session) => DropdownMenuItem<int?>(

@@ -314,9 +314,13 @@ class MultiAccountBarChart extends StatelessWidget {
                   // 中文注释：子任务消耗视图复用总耗时 tooltip 样式，避免专用多行 hover 明细触发布局抖动。
                   message: '${account.displayLabelFor(labelStyle)}\n'
                       '${_metricLabel()}：${_formatValue(val)}\n'
-                      '战斗${account.battleCount}场  '
-                      '总${formatStatisticsDuration(account.battleTotalDurationSeconds)}  '
-                      '均${formatStatisticsDuration(account.battleAvgDurationSeconds)}',
+                      '${I18n.multiStatsBattleSummary.trParams({
+                        'battleCount': '${account.battleCount}',
+                        'total': formatStatisticsDuration(
+                            account.battleTotalDurationSeconds),
+                        'avg': formatStatisticsDuration(
+                            account.battleAvgDurationSeconds),
+                      })}',
                   child: Container(
                     width: barWidth,
                     height: (_kEffectiveChartHeight * ratio)

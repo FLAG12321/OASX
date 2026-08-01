@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:oasx/config/translation/i18n_content.dart';
 import 'package:oasx/views/overview/overview_view.dart';
 import 'package:oasx/views/overview/stats_overview_panel.dart';
 
@@ -74,9 +76,9 @@ class _OverviewLogsStatsViewState extends State<OverviewLogsStatsView>
             borderSide: BorderSide(color: selectedColor, width: 2),
             insets: EdgeInsets.zero,
           ),
-          tabs: const [
-            Tab(text: '日志'),
-            Tab(text: '统计'),
+          tabs: [
+            Tab(text: I18n.log.tr),
+            Tab(text: I18n.stats.tr),
           ],
         ),
       ),

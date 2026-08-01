@@ -29,6 +29,7 @@ class I18n {
   static const String waiting = 'Waitings';
   static const String task_setting = 'Task Setting';
   static const String log = 'Log';
+  static const String stats = 'Stats';
   static const String clear_log = 'Clear Log';
   static const String login = 'Login';
   static const String setting = 'Setting';
@@ -82,6 +83,9 @@ class I18n {
   static const String config_add = 'Add new config';
   static const String config_copy_from_exist = 'Copy from existing config';
   static const String setting_saved = 'Setting saved';
+  static const String save = 'Save';
+  static const String none = 'None';
+  static const String deployEditHint = 'Edit deploy.yaml here...';
 
   // 菜单项相关
   static const String overview = 'Overview';
@@ -300,4 +304,49 @@ class I18n {
   static const String multiStatsColToggle = 'Columns';
   static const String multiStatsReset = 'Reset';
   static const String multiStatsNotFound = 'Not Found';
+  // 多账号统计补充文案：返回、时间范围、全天与列名等，中文译文见 _cn_multi_stats。
+  static const String multiStatsBack = 'Back';
+  static const String multiStatsTimeRange = 'Time Range';
+  static const String multiStatsAllDay = 'All Day';
+  static const String multiStatsTotalOption = 'Total Duration (All Tasks)';
+  static const String multiStatsColumnAccount = 'Account';
+  static const String multiStatsColumnDuration = 'Time Spent';
+  static const String multiStatsColumnSwitch = 'Switch';
+  static const String multiStatsColumnError = 'Error';
+  static const String multiStatsColumnBattle = 'Battle';
+  static const String multiStatsColumnCoop = 'Coop';
+  static const String multiStatsColumnMshop = 'Shop';
+  static const String multiStatsUnknown = 'Unknown';
+  // 多账号统计 tooltip/摘要模板（@key 占位符由 trParams 填充）。
+  static const String multiStatsRunTooltip =
+      'Runs: @runs\nStart: @start\nDuration: @duration';
+  static const String multiStatsBattleSummary =
+      'Battles @battleCount  Total @total  Avg @avg';
+
+  // 单脚本统计概览（Stats）相关文案 key，中文译文见 _cn_stats。
+  static const String statsLoading = 'Loading Stats';
+  static const String statsNoDate = 'No Stats Date';
+  static const String statsNoData = 'No Stats Data';
+  static const String statsMetric = 'Metric';
+  static const String statsSortAsc = 'Ascending';
+  static const String statsSortDesc = 'Descending';
+  static const String statsMetricTotalDuration = 'Total Duration';
+  static const String statsMetricRunCount = 'Run Count';
+  static const String statsMetricBattleCount = 'Battle Count';
+  static const String statsMetricBattleAvg = 'Avg Battle Duration';
+  static const String statsMetricAvgRun = 'Avg Run Duration';
+  static const String statsTaskCompare = 'Stats Task Compare';
+  static const String statsTaskCompareEmpty =
+      'No tasks to compare for the current metric';
+  static const String statsTaskDetailHint =
+      'Click a task bar above to view run details';
+  static const String statsNoTimeDetail = 'No time detail available for this task';
+  static const String statsNoBattleRecord = 'No battle record';
+  // Stats 模板文案（@key 占位符由 trParams 填充）。
+  static const String statsRunDetailTitle = 'Run Details: @task';
+  static const String statsBattleInfo = 'Battles @battleCount  ·  Avg @avg';
+  static const String statsEntrySummary =
+      '@count accounts  ·  Total @duration  ·  Errors @errors';
+  static const String statsTaskTooltip =
+      'Total Duration: @totalDuration\nRun Count: @runCount\nBattle Count: @battleCount\nAvg Battle Duration: @battleAvg\nAvg Run Duration: @avgRun';
 }

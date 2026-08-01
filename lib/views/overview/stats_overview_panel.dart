@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:oasx/config/translation/i18n_content.dart';
 import 'package:oasx/controller/stats/stats_page_controller.dart';
 import 'package:oasx/model/stats/script_statistics_models.dart';
 import 'package:oasx/views/overview/multi_account_stats_page.dart';
@@ -47,34 +48,34 @@ class _StatsOverviewPanelState extends State<StatsOverviewPanel> {
   /// 当前在图表中聚焦的任务名。
   String _focusedTaskName = '';
 
-  /// 指标下拉可选项（自包含中文文案，不依赖来源项目的 I18n key）。
-  static const List<_MetricOption> _metricOptions = [
-    _MetricOption(
-      value: ScriptStatisticsChartMetric.totalDuration,
-      label: '总耗时',
-      isDuration: true,
-    ),
-    _MetricOption(
-      value: ScriptStatisticsChartMetric.runCount,
-      label: '运行次数',
-      isDuration: false,
-    ),
-    _MetricOption(
-      value: ScriptStatisticsChartMetric.battleCount,
-      label: '战斗次数',
-      isDuration: false,
-    ),
-    _MetricOption(
-      value: ScriptStatisticsChartMetric.battleAvgDuration,
-      label: '平均战斗耗时',
-      isDuration: true,
-    ),
-    _MetricOption(
-      value: ScriptStatisticsChartMetric.avgRunDuration,
-      label: '平均单次耗时',
-      isDuration: true,
-    ),
-  ];
+  /// 指标下拉可选项（文案走 i18n key，随语言与后端补充翻译切换）。
+  static List<_MetricOption> get _metricOptions => [
+        _MetricOption(
+          value: ScriptStatisticsChartMetric.totalDuration,
+          label: I18n.statsMetricTotalDuration.tr,
+          isDuration: true,
+        ),
+        _MetricOption(
+          value: ScriptStatisticsChartMetric.runCount,
+          label: I18n.statsMetricRunCount.tr,
+          isDuration: false,
+        ),
+        _MetricOption(
+          value: ScriptStatisticsChartMetric.battleCount,
+          label: I18n.statsMetricBattleCount.tr,
+          isDuration: false,
+        ),
+        _MetricOption(
+          value: ScriptStatisticsChartMetric.battleAvgDuration,
+          label: I18n.statsMetricBattleAvg.tr,
+          isDuration: true,
+        ),
+        _MetricOption(
+          value: ScriptStatisticsChartMetric.avgRunDuration,
+          label: I18n.statsMetricAvgRun.tr,
+          isDuration: true,
+        ),
+      ];
 
   @override
   void initState() {
@@ -99,9 +100,9 @@ class _StatsOverviewPanelState extends State<StatsOverviewPanel> {
     return Obx(() {
       // 中文注释：首屏或切换日期时使用阻断式加载，占位明确反馈当前状态。
       if (controller.datesLoading.value || controller.statisticsBlockingLoading.value) {
-        return const _StatsStateView(
+        return _StatsStateView(
           icon: Icons.hourglass_top_rounded,
-          message: '正在加载统计…',
+          message: I18n.statsLoading.tr,
           loading: true,
         );
       }
@@ -117,7 +118,9 @@ class _StatsOverviewPanelState extends State<StatsOverviewPanel> {
       if (statistics == null) {
         return _StatsStateView(
           icon: Icons.bar_chart_rounded,
-          message: controller.availableDateKeys.isEmpty ? '暂无统计日期' : '暂无统计数据',
+          message: controller.availableDateKeys.isEmpty
+              ? I18n.statsNoDate.tr
+              : I18n.statsNoData.tr,
         );
       }
       final entries = _sortedEntries(statistics);
@@ -450,16 +453,18 @@ class _MultiAccountEntryCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '多账号统计',
+                      I18n.multiStatsTitle.tr,
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
                             fontWeight: FontWeight.w700,
                           ),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${accounts.length} 个账号  ·  '
-                      '总耗时 ${formatStatisticsDuration(totalDuration)}  ·  '
-                      '错误 $totalErrors',
+                      I18n.statsEntrySummary.trParams({
+                        'count': '${accounts.length}',
+                        'duration': formatStatisticsDuration(totalDuration),
+                        'errors': '$totalErrors',
+                      }),
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: scheme.onSurfaceVariant,
                           ),
@@ -507,7 +512,7 @@ class _MetricFilterRow extends StatelessWidget {
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         Text(
-          '指标',
+          I18n.statsMetric.tr,
           style: Theme.of(context).textTheme.labelMedium?.copyWith(
                 color: scheme.onSurfaceVariant,
               ),
@@ -520,13 +525,13 @@ class _MetricFilterRow extends StatelessWidget {
         ),
         const SizedBox(width: 4),
         Text(
-          '排序',
+          I18n.multiStatsSort.tr,
           style: Theme.of(context).textTheme.labelMedium?.copyWith(
                 color: scheme.onSurfaceVariant,
               ),
         ),
         IconButton(
-          tooltip: descending ? '降序' : '升序',
+          tooltip: descending ? I18n.statsSortDesc.tr : I18n.statsSortAsc.tr,
           onPressed: onToggleSort,
           icon: Icon(
             descending ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded,
@@ -687,7 +692,7 @@ class _TaskChartCard extends StatelessWidget {
                 const Icon(Icons.leaderboard_rounded, size: 18),
                 const SizedBox(width: 6),
                 Text(
-                  '任务统计对比',
+                  I18n.statsTaskCompare.tr,
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
                         fontWeight: FontWeight.w700,
                       ),
@@ -696,7 +701,7 @@ class _TaskChartCard extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             if (entries.isEmpty)
-              const _EmptyHint(text: '当前指标暂无可对比的任务')
+              _EmptyHint(text: I18n.statsTaskCompareEmpty.tr)
             else ...[
               ...entries.map((entry) => Padding(
                     padding: const EdgeInsets.only(bottom: 10),
@@ -756,11 +761,13 @@ class _TaskBarRow extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Text(
-                        entry.key,
+                        entry.key.tr,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
+                        // 中文注释：未聚焦条文字也用任务色（低透明度），
+                        // 避免与黑色默认文字混在一起难分辨；聚焦时全色加粗。
                         style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                              color: focused ? color : null,
+                              color: color.withValues(alpha: focused ? 1.0 : 0.72),
                               fontWeight: focused ? FontWeight.w700 : FontWeight.w500,
                             ),
                       ),
@@ -770,7 +777,7 @@ class _TaskBarRow extends StatelessWidget {
                       formatStatisticsMetricByType(value, metric),
                       style: Theme.of(context).textTheme.labelMedium?.copyWith(
                             fontWeight: FontWeight.w700,
-                            color: focused ? color : scheme.onSurface,
+                            color: color.withValues(alpha: focused ? 1.0 : 0.72),
                           ),
                     ),
                   ],
@@ -813,11 +820,14 @@ class _TaskBarRow extends StatelessWidget {
 
   /// 鼠标悬浮时展示的任务汇总信息。
   String _tooltipText() {
-    return '总耗时：${formatStatisticsDuration(entry.value.totalDurationSeconds)}\n'
-        '运行次数：${entry.value.runCount}\n'
-        '战斗次数：${entry.value.battleCount}\n'
-        '平均战斗耗时：${formatStatisticsDuration(entry.value.battleAvgDurationSeconds)}\n'
-        '平均单次耗时：${formatStatisticsDuration(entry.value.avgRunDurationSeconds)}';
+    return I18n.statsTaskTooltip.trParams({
+      'totalDuration':
+          formatStatisticsDuration(entry.value.totalDurationSeconds),
+      'runCount': '${entry.value.runCount}',
+      'battleCount': '${entry.value.battleCount}',
+      'battleAvg': formatStatisticsDuration(entry.value.battleAvgDurationSeconds),
+      'avgRun': formatStatisticsDuration(entry.value.avgRunDurationSeconds),
+    });
   }
 }
 
@@ -831,7 +841,7 @@ class _TaskDetailCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (taskName.trim().isEmpty) {
-      return const _EmptyHint(text: '点击上方任务条以查看运行明细');
+      return _EmptyHint(text: I18n.statsTaskDetailHint.tr);
     }
     return Card(
       margin: EdgeInsets.zero,
@@ -846,7 +856,7 @@ class _TaskDetailCard extends StatelessWidget {
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    '运行明细：$taskName',
+                    I18n.statsRunDetailTitle.trParams({'task': taskName.tr}),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
@@ -858,7 +868,7 @@ class _TaskDetailCard extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             if (runs.isEmpty)
-              const _EmptyHint(text: '该任务暂无可用的时间明细')
+              _EmptyHint(text: I18n.statsNoTimeDetail.tr)
             else
               ...List.generate(runs.length, (index) {
                 final serial = runs.length - index;
@@ -934,8 +944,12 @@ class _RunDetailRow extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   hasBattle
-                      ? '战斗 ${run.battleCount} 场  ·  均耗 ${formatStatisticsDuration(run.battleAvgDurationSeconds)}'
-                      : '无战斗记录',
+                      ? I18n.statsBattleInfo.trParams({
+                          'battleCount': '${run.battleCount}',
+                          'avg': formatStatisticsDuration(
+                              run.battleAvgDurationSeconds),
+                        })
+                      : I18n.statsNoBattleRecord.tr,
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
                         color: scheme.onSurfaceVariant,
                       ),

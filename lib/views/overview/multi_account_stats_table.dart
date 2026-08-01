@@ -46,13 +46,13 @@ class _ColumnKeys {
   /// 列显示名称。
   static String labelFor(String key) {
     return switch (key) {
-      account => '账号',
-      duration => '耗时',
-      switchOk => '切号',
-      errorCount => '错误',
-      battleCount => '战斗',
-      coopTotal => '协作',
-      mshopSummary => '商店',
+      account => I18n.multiStatsColumnAccount.tr,
+      duration => I18n.multiStatsColumnDuration.tr,
+      switchOk => I18n.multiStatsColumnSwitch.tr,
+      errorCount => I18n.multiStatsColumnError.tr,
+      battleCount => I18n.multiStatsColumnBattle.tr,
+      coopTotal => I18n.multiStatsColumnCoop.tr,
+      mshopSummary => I18n.multiStatsColumnMshop.tr,
       // 中文注释：战斗耗时列标签使用翻译 key。
       battleAvgDuration => I18n.multiStatsBattleAvgDuration.tr,
       battleTotalDuration => I18n.multiStatsBattleTotalDuration.tr,
@@ -327,7 +327,8 @@ class _MultiAccountStatsTableState extends State<MultiAccountStatsTable> {
                   if (hasTaskColumn)
                     DataColumn(
                       label: Text(
-                        '$selectedTask耗时${_sortIndicator(MultiStatsSortField.taskDuration)}',
+                        '$selectedTask${I18n.multiStatsTaskDurationPrefix.tr}'
+                        '${_sortIndicator(MultiStatsSortField.taskDuration)}',
                         style: Theme.of(context)
                             .textTheme
                             .labelMedium
@@ -511,13 +512,18 @@ class _MultiAccountStatsTableState extends State<MultiAccountStatsTable> {
                   task.battleTotalDurationSeconds > 0 ||
                   task.battleAvgDurationSeconds > 0;
               // 中文注释：子任务 tooltip 补充单次运行的执行次数、开始时间和持续时间。
-              final taskStartTime =
-                  task.startTime.trim().isEmpty ? '未知' : task.startTime;
+              final taskStartTime = task.startTime.trim().isEmpty
+                  ? I18n.multiStatsUnknown.tr
+                  : task.startTime;
               final taskDuration = formatStatisticsDuration(dur);
               return Padding(
                 padding: const EdgeInsets.only(bottom: 2),
                 child: Tooltip(
-                  message: '执行次数：1\n开始时间：$taskStartTime\n持续时间：$taskDuration',
+                  message: I18n.multiStatsRunTooltip.trParams({
+                    'runs': '1',
+                    'start': taskStartTime,
+                    'duration': taskDuration,
+                  }),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -556,9 +562,13 @@ class _MultiAccountStatsTableState extends State<MultiAccountStatsTable> {
                         Padding(
                           padding: const EdgeInsets.only(left: 20, top: 1),
                           child: Text(
-                            '战斗${task.battleCount}场  '
-                            '总${formatStatisticsDuration(task.battleTotalDurationSeconds)}  '
-                            '均${formatStatisticsDuration(task.battleAvgDurationSeconds)}',
+                            I18n.multiStatsBattleSummary.trParams({
+                              'battleCount': '${task.battleCount}',
+                              'total': formatStatisticsDuration(
+                                  task.battleTotalDurationSeconds),
+                              'avg': formatStatisticsDuration(
+                                  task.battleAvgDurationSeconds),
+                            }),
                             style: Theme.of(context)
                                 .textTheme
                                 .labelSmall

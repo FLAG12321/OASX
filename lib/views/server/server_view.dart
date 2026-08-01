@@ -190,11 +190,11 @@ class ServerView extends StatelessWidget {
                   fontFamily: 'monospace',
                   fontSize: 14,
                 ),
-                decoration: const InputDecoration(
-                  contentPadding: EdgeInsets.all(12),
+                decoration: InputDecoration(
+                  contentPadding: const EdgeInsets.all(12),
                   border: InputBorder.none,
-                  hintText: '在此编辑 deploy.yaml...',
-                  hintStyle: TextStyle(color: Color(0xff6b6b6b)),
+                  hintText: I18n.deployEditHint.tr,
+                  hintStyle: const TextStyle(color: Color(0xff6b6b6b)),
                 ),
               ),
             ),
@@ -202,7 +202,7 @@ class ServerView extends StatelessWidget {
           const SizedBox(height: 8),
           ElevatedButton.icon(
             icon: const Icon(Icons.save),
-            label: const Text('保存'),
+            label: Text(I18n.save.tr),
             onPressed: () {
               controller.writeDeploy(textController.text);
             },

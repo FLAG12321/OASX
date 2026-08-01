@@ -29,6 +29,7 @@ final Map<String, String> _cn_ui = {
   I18n.waiting: '等待中',
   I18n.task_setting: '设置',
   I18n.log: '日志',
+  I18n.stats: '统计',
   I18n.clear_log: '清空日志',
   I18n.login: '登录',
   I18n.setting: '设置',
@@ -87,6 +88,9 @@ final Map<String, String> _cn_ui = {
   I18n.config_add: '添加新配置',
   I18n.config_copy_from_exist: '复制已有配置',
   I18n.setting_saved: '设置已保存',
+  I18n.save: '保存',
+  I18n.none: '无',
+  I18n.deployEditHint: '在此编辑 deploy.yaml...',
   I18n.launchAtStartup: '开机自启',
   I18n.launchAtStartupUpdateFailed: '开机自启设置失败',
   I18n.autoRunScript: '自动启动脚本',
@@ -1217,7 +1221,7 @@ final Map<String, String> _cn_dye_trials_config = {};
 
 // 多账号统计（MultiDailyAltAcc）中文译文，供多账号统计页 UI 使用。
 final Map<String, String> _cn_multi_stats = {
-  I18n.multiStatsTitle: 'MultiDailyAltAcc 统计',
+  I18n.multiStatsTitle: '多账号统计',
   I18n.multiStatsNoData: '暂无多号统计数据',
   I18n.multiStatsMetricCompare: '指标对比',
   I18n.multiStatsAccountName: '账号名',
@@ -1271,4 +1275,46 @@ final Map<String, String> _cn_multi_stats = {
   I18n.multiStatsColToggle: '显示列',
   I18n.multiStatsReset: '重置',
   I18n.multiStatsNotFound: '未找到',
+  // 多账号统计补充文案：返回、时间范围、全天与列名等。
+  I18n.multiStatsBack: '返回',
+  I18n.multiStatsTimeRange: '时间范围',
+  I18n.multiStatsAllDay: '全天',
+  I18n.multiStatsTotalOption: '（总耗时）',
+  I18n.multiStatsColumnAccount: '账号',
+  I18n.multiStatsColumnDuration: '耗时',
+  I18n.multiStatsColumnSwitch: '切号',
+  I18n.multiStatsColumnError: '错误',
+  I18n.multiStatsColumnBattle: '战斗',
+  I18n.multiStatsColumnCoop: '协作',
+  I18n.multiStatsColumnMshop: '商店',
+  I18n.multiStatsUnknown: '未知',
+  // 多账号统计 tooltip/摘要模板（@key 占位符由 trParams 填充）。
+  I18n.multiStatsRunTooltip: '执行次数：@runs\n开始时间：@start\n持续时间：@duration',
+  I18n.multiStatsBattleSummary: '战斗@battleCount场  总@total  均@avg',
+};
+
+// 单脚本统计概览（Stats）中文译文，供统计概览页 UI 使用。
+final Map<String, String> _cn_stats = {
+  I18n.statsLoading: '正在加载统计…',
+  I18n.statsNoDate: '暂无统计日期',
+  I18n.statsNoData: '暂无统计数据',
+  I18n.statsMetric: '指标',
+  I18n.statsSortAsc: '升序',
+  I18n.statsSortDesc: '降序',
+  I18n.statsMetricTotalDuration: '总耗时',
+  I18n.statsMetricRunCount: '运行次数',
+  I18n.statsMetricBattleCount: '战斗次数',
+  I18n.statsMetricBattleAvg: '平均战斗耗时',
+  I18n.statsMetricAvgRun: '平均单次耗时',
+  I18n.statsTaskCompare: '任务统计对比',
+  I18n.statsTaskCompareEmpty: '当前指标暂无可对比的任务',
+  I18n.statsTaskDetailHint: '点击上方任务条以查看运行明细',
+  I18n.statsNoTimeDetail: '该任务暂无可用的时间明细',
+  I18n.statsNoBattleRecord: '无战斗记录',
+  // Stats 模板文案（@key 占位符由 trParams 填充）。
+  I18n.statsRunDetailTitle: '运行明细：@task',
+  I18n.statsBattleInfo: '战斗 @battleCount 场  ·  均耗 @avg',
+  I18n.statsEntrySummary: '@count 个账号  ·  总耗时 @duration  ·  错误 @errors',
+  I18n.statsTaskTooltip:
+      '总耗时：@totalDuration\n运行次数：@runCount\n战斗次数：@battleCount\n平均战斗耗时：@battleAvg\n平均单次耗时：@avgRun',
 };

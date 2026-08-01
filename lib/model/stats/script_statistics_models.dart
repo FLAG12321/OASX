@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:isolate';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:get/get.dart';
+import 'package:oasx/config/translation/i18n_content.dart';
 
 /// 多号账号显示名组合规则。
 enum MultiAccountLabelStyle {
@@ -733,17 +735,21 @@ class ScriptMultiAccountStatistics {
 
   /// 错误摘要。
   String get errorSummary {
-    return errors.isEmpty ? '无' : errors.map((item) => item.displayText).join('\n');
+    return errors.isEmpty
+        ? I18n.none.tr
+        : errors.map((item) => item.displayText).join('\n');
   }
 
   /// 协作摘要。
   String get coopSummary {
     if (coops.isEmpty) {
-      return '未找到';
+      return I18n.multiStatsNotFound.tr;
     }
     final counter = <String, int>{};
     for (final coop in coops) {
-      final key = '${coop.real ? '现世' : '普通'}${coop.ctype}';
+      final key =
+          '${coop.real ? I18n.multiStatsCoopReal.tr : I18n.multiStatsCoopNormal.tr}'
+          '${coop.ctype}';
       counter[key] = (counter[key] ?? 0) + 1;
     }
     return counter.entries.map((entry) => '${entry.key}×${entry.value}').join(', ');
