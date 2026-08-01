@@ -44,3 +44,7 @@ app.*.map.json
 /android/app/release
 
 /normal/*
+
+# 开发过程中间产物（设计文档、调研笔记），不进版本库
+docs/superpowers/
+subagents.md
