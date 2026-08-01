@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:oasx/config/translation/i18n_content.dart';
@@ -7,6 +8,8 @@ import 'package:oasx/views/overview/multi_account_stats_chart.dart';
 import 'package:oasx/views/overview/multi_account_stats_labels.dart';
 import 'package:oasx/views/overview/multi_account_stats_table.dart';
 import 'package:oasx/views/overview/statistics_formatters.dart';
+import 'package:oasx/utils/platform_utils.dart';
+import 'package:window_manager/window_manager.dart';
 
 /// 排序方向。
 enum _SortDirection { none, asc, desc }
@@ -208,17 +211,25 @@ class _MultiAccountStatsPageState extends State<MultiAccountStatsPage> {
     final dateLabel = widget.initialDateKey ?? widget.statisticsDay.dateKey;
 
     return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded),
-          tooltip: '返回',
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: Text(
-          '${I18n.multiStatsTitle.tr} · $dateLabel',
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
-      ),
+      appBar: PlatformUtils.isWindows
+          ? PreferredSize(
+              preferredSize: const Size.fromHeight(50),
+              child: _StatsWindowTitleBar(
+                title: '${I18n.multiStatsTitle.tr} · $dateLabel',
+                onBack: () => Navigator.of(context).pop(),
+              ),
+            )
+          : AppBar(
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back_rounded),
+                tooltip: I18n.multiStatsBack.tr,
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+              title: Text(
+                '${I18n.multiStatsTitle.tr} · $dateLabel',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
       body: multi == null || multi.accounts.isEmpty
           ? Center(
               child: Text(
@@ -859,3 +870,119 @@ class _StatBadge extends StatelessWidget {
   }
 }
 
+/// Windows 无标题栏时的统计页自绘标题栏。
+///
+/// WindowCaption 的 title 区为无界宽度（内部为非弹性 Container），无法承载
+/// 带省略号的标题文本，因此用 DragToMoveArea + WindowCaptionButton 自绘
+/// 一条有界标题栏：左侧可拖动（含返回按钮与标题），右侧最小化/最大化/关闭。
+class _StatsWindowTitleBar extends StatefulWidget {
+  /// 创建统计页标题栏。
+  const _StatsWindowTitleBar({required this.title, this.onBack});
+
+  /// 标题文本（标题区有界，过长时省略号截断）。
+  final String title;
+
+  /// 返回按钮点击回调。
+  final VoidCallback? onBack;
+
+  @override
+  State<_StatsWindowTitleBar> createState() => _StatsWindowTitleBarState();
+}
+
+class _StatsWindowTitleBarState extends State<_StatsWindowTitleBar>
+    with WindowListener {
+  /// 当前是否最大化，用于在“最大化/还原”图标间切换。
+  bool _maximized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    windowManager.addListener(this);
+    // 查询初始最大化状态；测试环境无插件实现，异常时保持未最大化。
+    windowManager.isMaximized().then((value) {
+      if (mounted) setState(() => _maximized = value);
+    }).catchError((Object error) {
+      // 仅忽略测试环境未安装插件抛出的 MissingPluginException，其余异常照常抛出。
+      if (error is! MissingPluginException) {
+        throw error;
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    windowManager.removeListener(this);
+    super.dispose();
+  }
+
+  @override
+  void onWindowMaximize() {
+    setState(() => _maximized = true);
+  }
+
+  @override
+  void onWindowUnmaximize() {
+    setState(() => _maximized = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final brightness = Theme.of(context).brightness;
+    return Row(
+      children: [
+        // 左侧：可拖动区域（返回按钮 + 标题），有界宽度，标题过长省略号。
+        Expanded(
+          child: DragToMoveArea(
+            child: Row(
+              children: [
+                const SizedBox(width: 8),
+                IconButton(
+                  icon: const Icon(Icons.arrow_back_rounded),
+                  tooltip: I18n.multiStatsBack.tr,
+                  onPressed: widget.onBack,
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    widget.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        // 右侧：窗口控制按钮，样式与主窗口 WindowCaption 一致。
+        // WindowCaptionButton 工厂不提供默认 onPressed，须显式接入窗口操作。
+        WindowCaptionButton.minimize(
+          brightness: brightness,
+          onPressed: () async {
+            // 已最小化时还原，否则最小化（与 WindowCaption 行为一致）。
+            final isMinimized = await windowManager.isMinimized();
+            if (isMinimized) {
+              windowManager.restore();
+            } else {
+              windowManager.minimize();
+            }
+          },
+        ),
+        if (_maximized)
+          WindowCaptionButton.unmaximize(
+            brightness: brightness,
+            onPressed: () => windowManager.unmaximize(),
+          )
+        else
+          WindowCaptionButton.maximize(
+            brightness: brightness,
+            onPressed: () => windowManager.maximize(),
+          ),
+        WindowCaptionButton.close(
+          brightness: brightness,
+          onPressed: () => windowManager.close(),
+        ),
+      ],
+    );
+  }
+}
