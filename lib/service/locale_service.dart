@@ -12,9 +12,20 @@ class LocaleService extends GetxService with DynamicMessages {
   final _storage = GetStorage();
   final language = 'zh-CN'.obs;
 
-  final fallbackLocale = const Locale('zh', 'CN');
+  /// 语言名到 Locale 的映射；未知语言回退简体中文。
+  Locale _localeFor(String lang) => switch (lang) {
+        'zh-CN' => const Locale('zh', 'CN'),
+        'en-US' => const Locale('en', 'US'),
+        _ => const Locale('zh', 'CN'),
+      };
 
-  Locale get currentLocale => _loadLocaleFromStorage();
+  /// 当前语言对应的 Locale，供 GetMaterialApp.locale 使用。
+  Locale get currentLocale => _localeFor(language.value);
+
+  /// 回退目标跟随当前语言：英文模式下不回退到 zh-CN，
+  /// 避免 GetX `.tr` 把英文表缺失的 key 解析成中文；
+  /// 中文模式仍回退中文，行为不变。
+  Locale get fallbackLocale => _localeFor(language.value);
 
   @override
   void onInit() {
@@ -31,18 +42,11 @@ class LocaleService extends GetxService with DynamicMessages {
   }
 
   void _updateLocale(String lang) {
-    final locale = switch (lang) {
-      'zh-CN' => const Locale('zh', 'CN'),
-      'en-US' => const Locale('en', 'US'),
-      _ => fallbackLocale,
-    };
+    final locale = _localeFor(lang);
     Get.updateLocale(locale);
-  }
-
-  Locale _loadLocaleFromStorage() {
-    final code = _storage.read(StorageKey.language.name);
-    if (code == null) return fallbackLocale;
-    return Locale(code);
+    // GetMaterialApp 仅在 initState 里设置一次 Get.fallbackLocale，
+    // 语言切换后需手动跟随，否则英文模式下仍会回退 zh-CN 显示中文。
+    Get.fallbackLocale = locale;
   }
 }
 
