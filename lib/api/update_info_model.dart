@@ -9,6 +9,7 @@ class UpdateInfoModel extends BaseNetModel {
   UpdateInfoModel({
     this.isUpdate,
     this.branch,
+    this.repository,
     this.currentCommit,
     this.latestCommit,
     this.commit,
@@ -16,9 +17,10 @@ class UpdateInfoModel extends BaseNetModel {
   UpdateInfoModel.fromJson(dynamic json) {
     isUpdate = json['is_update'];
     branch = json['branch'];
+    repository = json['repository'];
     currentCommit = json['current_commit']!.cast<String>();
     latestCommit = json['latest_commit']!.cast<String>();
-    // commit = 
+    // commit =
     //      json['commit']!.map<List<String>>((dynamic e) => e.cast<String>() ).toList();
 
     commit = [];
@@ -26,10 +28,11 @@ class UpdateInfoModel extends BaseNetModel {
       commit!.add(e.cast<String>());
     });
 
-  }                                                                          
+  }
 
   bool? isUpdate;
   String? branch;
+  String? repository;
   List<String>? currentCommit;
   List<String>? latestCommit;
   List<List<String>>? commit;

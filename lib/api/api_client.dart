@@ -13,6 +13,7 @@ import 'package:oasx/controller/settings.dart';
 import './home_model.dart';
 import './script_log_models.dart';
 import './update_info_model.dart';
+import './update_progress_model.dart';
 
 /// common result
 class ApiResult<T> {
@@ -160,12 +161,28 @@ class ApiClient {
   }
 
   Future<String?> getExecuteUpdate() async {
+    // 后台线程执行更新，进度由 getUpdateProgress() 轮询获取
     final res = await request(() => get('/home/execute_update'));
-    if (res.isSuccess) {
-      showDialog('Update', res.data.toString());
-      return res.data;
-    }
     return res.data;
+  }
+
+  Future<UpdateProgressModel?> getUpdateProgress() async {
+    final res = await request(() => get(
+          '/home/update_progress',
+          decodeType: UpdateProgressModel(),
+        ));
+    return res.isSuccess ? res.data : null;
+  }
+
+  Future<Map<String, dynamic>?> setUpdateConfig({String? branch, String? repository}) async {
+    final res = await request(() => post(
+          '/home/update_config',
+          queryParameters: {
+            if (branch != null) 'branch': branch,
+            if (repository != null) 'repository': repository,
+          },
+        ));
+    return res.isSuccess ? res.data : null;
   }
 
   Future<bool> putChineseTranslate() async {
