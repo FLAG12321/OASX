@@ -5,169 +5,65 @@ import 'package:get/get.dart';
 import 'package:styled_widget/styled_widget.dart';
 
 import 'package:oasx/api/update_info_model.dart';
-import 'package:oasx/api/update_progress_model.dart';
 import 'package:oasx/api/api_client.dart';
 import 'package:oasx/config/global.dart';
 
 import 'package:oasx/config/translation/i18n_content.dart';
 
-class UpdaterView extends StatelessWidget {
+/// 更新器页面。
+///
+/// 骨架（手动更新 UI）立即渲染，不依赖网络；远程分支信息由 [_RemoteSection]
+/// 独立异步加载：加载中显示动画，连接失败显示「获取分支失败」，成功再渲染 commit 表格。
+class UpdaterView extends StatefulWidget {
   const UpdaterView({Key? key}) : super(key: key);
 
   @override
+  State<UpdaterView> createState() => _UpdaterViewState();
+}
+
+class _UpdaterViewState extends State<UpdaterView> {
+  // 手动更新 UI 与远程信息区共享同一份 update_info，整页只发一次 /update_info，
+  // 避免并发请求各自触发后端 git fetch 造成 ref 竞争
+  late final Future<UpdateInfoModel> _infoFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _infoFuture = ApiClient().getUpdateInfo();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return FutureBuilder<UpdateInfoModel>(
-        future: ApiClient().getUpdateInfo(),
-        builder:
-            (BuildContext context, AsyncSnapshot<UpdateInfoModel> snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            // 当Future还未完成时，显示加载中的UI
-            return const CircularProgressIndicator();
-          } else if (snapshot.hasError) {
-            // 当Future发生错误时，显示错误提示的UI
-            return Text('Error: ${snapshot.error}');
-          } else {
-            // 当Future成功完成时，显示数据
-            UpdateInfoModel data = snapshot.data!;
-            return SingleChildScrollView(
-              child: content(data, context).paddingAll(20),
-            );
-          }
-        });
-  }
-
-  Widget content(UpdateInfoModel data, BuildContext context) {
-    // String currentVersion = Get.find<SettingsController>().version.value;
-    Widget version = Text('${I18n.current_version.tr}: ${GlobalVar.version}',
-        style: Theme.of(context).textTheme.titleMedium);
-    Widget title = <Widget>[
-      data.isUpdate!
-          ? const Icon(Icons.cloud_download)
-          : const Icon(
-              Icons.cloud_off,
-              color: Colors.green,
-            ),
-      data.isUpdate!
-          ? Text(I18n.find_oas_new_version.tr,
-              style: Theme.of(context).textTheme.titleMedium)
-          : Text(I18n.oas_latest_version.tr,
-              style: Theme.of(context).textTheme.titleMedium),
-      const SizedBox(
-        width: 20,
+    // SizedBox.expand 撑满宿主的 Center，使内容顶部对齐而非垂直居中，
+    // 避免远程区加载/失败时内容高度变化导致整个页面位置跳动
+    return SizedBox.expand(
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('${I18n.current_version.tr}: ${GlobalVar.version}',
+                style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 12),
+            _UpdateConfigForm(infoFuture: _infoFuture),
+            const SizedBox(height: 12),
+            const _UpdateLogPanel(),
+            const SizedBox(height: 12),
+            _RemoteSection(infoFuture: _infoFuture),
+          ],
+        ).paddingAll(20),
       ),
-      Text('${I18n.current_branch.tr}: ${data.branch}',
-              style: Theme.of(context).textTheme.titleMedium,
-              textAlign: TextAlign.center)
-          .constrained(height: 26),
-    ].toRow(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        separator: const SizedBox(width: 10));
-    Table differTable = Table(
-      border: tableBorder,
-      textBaseline: TextBaseline.alphabetic,
-      columnWidths: columnWidths,
-      defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-      children: [
-        differHead(context),
-        genTableRow(data.currentCommit!, differ: true, localRepo: true),
-        genTableRow(data.latestCommit!, differ: true)
-      ],
     );
-    Table submitHistory = Table(
-      border: tableBorder,
-      columnWidths: columnWidths,
-      defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-      children: submitHistoryData(data, context),
-    );
-    return <Widget>[
-      version,
-      title,
-      _UpdateConfigForm(data: data),
-      // 手动更新 + log 框紧跟输入框下方
-      const _UpdateLogPanel(),
-      // 「当前版本」标题置于 log 框下方，与「详细提交历史」同一字体字号
-      Text(I18n.current_version.tr,
-          style: Theme.of(context).textTheme.titleMedium),
-      differTable,
-      Text(I18n.detailed_submission_history.tr,
-          style: Theme.of(context).textTheme.titleMedium),
-      submitHistory,
-    ].toColumn(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        separator: const SizedBox(
-          height: 10,
-        ));
-  }
-
-  String sha1(String data) {
-    return data.substring(0, 7);
-  }
-
-  TableRow genTableRow(List<String> data,
-      {bool differ = false, bool localRepo = false}) {
-    return TableRow(children: [
-      Text(sha1(data[0])).paddingAll(10),
-      Text(data[1]).paddingAll(10),
-      Text(data[2]).paddingAll(10),
-      Text(data[3]).paddingAll(10),
-      if (differ)
-        localRepo
-            ? Text(I18n.local_repo.tr).paddingAll(10)
-            : Text(I18n.remote_repo.tr).paddingAll(10)
-    ]);
-  }
-
-  TableBorder get tableBorder =>
-      TableBorder.all(color: Colors.grey, width: 1, style: BorderStyle.solid);
-
-  Map<int, TableColumnWidth> get columnWidths => const {
-        0: FixedColumnWidth(80.0),
-        1: FixedColumnWidth(140.0),
-        2: FixedColumnWidth(200.0),
-        // 3: FixedColumnWidth(80.0),
-      };
-
-  TableRow differHead(BuildContext context) => TableRow(children: [
-        Text('SHA1', style: Theme.of(context).textTheme.titleMedium)
-            .paddingAll(10),
-        Text(I18n.author.tr, style: Theme.of(context).textTheme.titleMedium)
-            .paddingAll(10),
-        Text(I18n.submit_time.tr,
-                style: Theme.of(context).textTheme.titleMedium)
-            .paddingAll(10),
-        Text(I18n.submit_info.tr,
-                style: Theme.of(context).textTheme.titleMedium)
-            .paddingAll(10),
-        Text('Repo', style: Theme.of(context).textTheme.titleMedium)
-            .paddingAll(10),
-      ]);
-
-  TableRow historyHead(BuildContext context) => TableRow(children: [
-        Text('SHA1', style: Theme.of(context).textTheme.titleMedium)
-            .paddingAll(10),
-        Text(I18n.author.tr, style: Theme.of(context).textTheme.titleMedium)
-            .paddingAll(10),
-        Text(I18n.submit_time.tr,
-                style: Theme.of(context).textTheme.titleMedium)
-            .paddingAll(10),
-        Text(I18n.submit_info.tr,
-                style: Theme.of(context).textTheme.titleMedium)
-            .paddingAll(10),
-      ]);
-
-  List<TableRow> submitHistoryData(data, BuildContext context) {
-    List<TableRow> result =
-        data.commit!.map((e) => genTableRow(e)).toList().cast<TableRow>();
-    result.insert(0, historyHead(context));
-    return result;
   }
 }
 
 /// Repository / Branch 填写框 + 保存按钮，读写都以 deploy.yaml 为准。
+/// 初始值异步加载，加载期间保持空值可编辑，不阻塞手动更新 UI 的显示。
 class _UpdateConfigForm extends StatefulWidget {
-  const _UpdateConfigForm({Key? key, required this.data}) : super(key: key);
+  const _UpdateConfigForm({Key? key, required this.infoFuture})
+      : super(key: key);
 
-  final UpdateInfoModel data;
+  /// 与远程信息区共享的 update_info future，用于填充 Repository / Branch 初始值
+  final Future<UpdateInfoModel> infoFuture;
 
   @override
   State<_UpdateConfigForm> createState() => _UpdateConfigFormState();
@@ -177,12 +73,15 @@ class _UpdateConfigFormState extends State<_UpdateConfigForm> {
   late final TextEditingController _repoController;
   late final TextEditingController _branchController;
   bool _saving = false;
+  // 用户是否已手动编辑，避免异步填充初始值覆盖用户输入
+  bool _userEdited = false;
 
   @override
   void initState() {
     super.initState();
-    _repoController = TextEditingController(text: widget.data.repository ?? '');
-    _branchController = TextEditingController(text: widget.data.branch ?? '');
+    _repoController = TextEditingController();
+    _branchController = TextEditingController();
+    _loadInitial();
   }
 
   @override
@@ -190,6 +89,17 @@ class _UpdateConfigFormState extends State<_UpdateConfigForm> {
     _repoController.dispose();
     _branchController.dispose();
     super.dispose();
+  }
+
+  /// 异步读取当前 Repository / Branch（来自 deploy.yaml），复用共享 future 避免重复请求。
+  Future<void> _loadInitial() async {
+    final info = await widget.infoFuture;
+    // 用户已手动编辑时不覆盖输入框
+    if (!mounted || _userEdited) return;
+    setState(() {
+      _repoController.text = info.repository ?? '';
+      _branchController.text = info.branch ?? '';
+    });
   }
 
   Future<void> _save() async {
@@ -224,6 +134,7 @@ class _UpdateConfigFormState extends State<_UpdateConfigForm> {
                 ),
                 // 输入框文字调细调小
                 style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w300),
+                onChanged: (_) => _userEdited = true,
               ),
             ),
             const SizedBox(width: 8),
@@ -237,6 +148,7 @@ class _UpdateConfigFormState extends State<_UpdateConfigForm> {
                 ),
                 // 输入框文字调细调小
                 style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w300),
+                onChanged: (_) => _userEdited = true,
               ),
             ),
             const SizedBox(width: 8),
@@ -404,5 +316,166 @@ class _UpdateLogPanelState extends State<_UpdateLogPanel> {
         ),
       ],
     );
+  }
+}
+
+/// 远程分支信息区：独立异步加载 /update_info。
+/// 加载中显示动画；fetch 失败（如连不上 GitHub / Gitee）显示「获取分支失败」；
+/// 成功后渲染版本状态与本地/远程 commit 表格。
+class _RemoteSection extends StatelessWidget {
+  const _RemoteSection({Key? key, required this.infoFuture}) : super(key: key);
+
+  /// 与手动更新表单共享的 update_info future，整页只发一次 /update_info
+  final Future<UpdateInfoModel> infoFuture;
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<UpdateInfoModel>(
+        future: infoFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            // 加载中：显示加载动画，不阻塞手动更新 UI
+            return const Row(children: [
+              SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2)),
+              SizedBox(width: 8),
+              Text('正在获取分支信息…'),
+            ]);
+          }
+          final data = snapshot.data;
+          if (snapshot.hasError || data == null || data.fetchOk == false) {
+            // 接口异常，或后端明确报告 fetch 失败（连不上远程），报错而不是假装「已是最新版本」
+            return Text('获取分支失败',
+                style: TextStyle(color: Theme.of(context).colorScheme.error));
+          }
+          // fetchOk 缺失（旧后端未返回该字段）或为 true：按数据渲染，commit 缺失时表格显示占位符
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _title(data, context),
+              const SizedBox(height: 10),
+              _differTable(data, context),
+              const SizedBox(height: 10),
+              Text(I18n.detailed_submission_history.tr,
+                  style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 10),
+              _submitHistory(data, context),
+            ],
+          );
+        });
+  }
+
+  /// 顶部状态行：是否有新版本 + 当前分支
+  Widget _title(UpdateInfoModel data, BuildContext context) {
+    return <Widget>[
+      data.isUpdate!
+          ? const Icon(Icons.cloud_download)
+          : const Icon(Icons.cloud_off, color: Colors.green),
+      data.isUpdate!
+          ? Text(I18n.find_oas_new_version.tr,
+              style: Theme.of(context).textTheme.titleMedium)
+          : Text(I18n.oas_latest_version.tr,
+              style: Theme.of(context).textTheme.titleMedium),
+      const SizedBox(width: 20),
+      Text('${I18n.current_branch.tr}: ${data.branch}',
+              style: Theme.of(context).textTheme.titleMedium,
+              textAlign: TextAlign.center)
+          .constrained(height: 26),
+    ].toRow(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        separator: const SizedBox(width: 10));
+  }
+
+  /// 本地 vs 远程 commit 对比表
+  Table _differTable(UpdateInfoModel data, BuildContext context) {
+    return Table(
+      border: tableBorder,
+      textBaseline: TextBaseline.alphabetic,
+      columnWidths: columnWidths,
+      defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+      children: [
+        differHead(context),
+        genTableRow(data.currentCommit, differ: true, localRepo: true),
+        genTableRow(data.latestCommit, differ: true)
+      ],
+    );
+  }
+
+  Table _submitHistory(UpdateInfoModel data, BuildContext context) {
+    return Table(
+      border: tableBorder,
+      columnWidths: columnWidths,
+      defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+      children: submitHistoryData(data, context),
+    );
+  }
+
+  String sha1(String data) {
+    return data.substring(0, 7);
+  }
+
+  TableRow genTableRow(List<String>? data,
+      {bool differ = false, bool localRepo = false}) {
+    // 远程 commit 数据可能为 null / 长度不足，渲染占位符避免整页崩溃
+    final ok = data != null && data.length >= 4;
+    return TableRow(children: [
+      Text(ok ? sha1(data[0]) : '—').paddingAll(10),
+      Text(ok ? data[1] : '—').paddingAll(10),
+      Text(ok ? data[2] : '—').paddingAll(10),
+      Text(ok ? data[3] : '—').paddingAll(10),
+      if (differ)
+        localRepo
+            ? Text(I18n.local_repo.tr).paddingAll(10)
+            : Text(I18n.remote_repo.tr).paddingAll(10)
+    ]);
+  }
+
+  TableBorder get tableBorder =>
+      TableBorder.all(color: Colors.grey, width: 1, style: BorderStyle.solid);
+
+  Map<int, TableColumnWidth> get columnWidths => const {
+        0: FixedColumnWidth(80.0),
+        1: FixedColumnWidth(140.0),
+        2: FixedColumnWidth(200.0),
+        // 3: FixedColumnWidth(80.0),
+      };
+
+  TableRow differHead(BuildContext context) => TableRow(children: [
+        Text('SHA1', style: Theme.of(context).textTheme.titleMedium)
+            .paddingAll(10),
+        Text(I18n.author.tr, style: Theme.of(context).textTheme.titleMedium)
+            .paddingAll(10),
+        Text(I18n.submit_time.tr,
+                style: Theme.of(context).textTheme.titleMedium)
+            .paddingAll(10),
+        Text(I18n.submit_info.tr,
+                style: Theme.of(context).textTheme.titleMedium)
+            .paddingAll(10),
+        Text('Repo', style: Theme.of(context).textTheme.titleMedium)
+            .paddingAll(10),
+      ]);
+
+  TableRow historyHead(BuildContext context) => TableRow(children: [
+        Text('SHA1', style: Theme.of(context).textTheme.titleMedium)
+            .paddingAll(10),
+        Text(I18n.author.tr, style: Theme.of(context).textTheme.titleMedium)
+            .paddingAll(10),
+        Text(I18n.submit_time.tr,
+                style: Theme.of(context).textTheme.titleMedium)
+            .paddingAll(10),
+        Text(I18n.submit_info.tr,
+                style: Theme.of(context).textTheme.titleMedium)
+            .paddingAll(10),
+      ]);
+
+  List<TableRow> submitHistoryData(UpdateInfoModel data, BuildContext context) {
+    List<TableRow> result = (data.commit ?? [])
+        .map((e) => genTableRow(e))
+        .toList()
+        .cast<TableRow>();
+    result.insert(0, historyHead(context));
+    return result;
   }
 }
