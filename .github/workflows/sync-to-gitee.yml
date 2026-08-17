@@ -1,0 +1,81 @@
+name: Sync to Gitee
+
+# 每次推送到 master / 创建 v* tag / 发布 release 时，把 GitHub 上的
+# FLAG12321/OASX 同步到 Gitee flag12321/OASX：
+# - sync-code：镜像 master 与全部 tags
+# - sync-release：把 GitHub release（含安装包等附件）镜像为 Gitee 发行版
+
+on:
+  push:
+    branches: [master]
+    tags: ["v*"]
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  sync-code:
+    runs-on: ubuntu-latest
+    steps:
+      # 拉取完整历史与全部 tags，供后续推送 master 与 tags 使用
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Mirror master and tags to Gitee
+        run: |
+          git remote add gitee https://flag12321:${{ secrets.GITEE_TOKEN }}@gitee.com/flag12321/OASX.git
+          # HEAD:master 避免依赖本地 master 分支是否存在；镜像以 GitHub 为准，强制覆盖
+          git push gitee HEAD:master --force
+          git push gitee --tags --force
+
+  sync-release:
+    needs: sync-code
+    # 只在 release 发布事件触发；tag 推送/workflow_dispatch 只走代码同步
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download GitHub release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p assets
+          # 发布事件里没有附件时直接跳过，不报错
+          gh release download "${{ github.event.release.tag_name }}" \
+            --repo "${{ github.repository }}" \
+            --dir assets --clobber || true
+
+      - name: Mirror release and assets to Gitee
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+        run: |
+          set -e
+          # 把 release 事件转成 JSON 文件，安全提取 tag/body（含换行与引号）
+          echo '${{ toJSON(github.event.release) }}' > release.json
+          TAG=$(jq -r '.tag_name' release.json)
+          BODY=$(jq -r '.body // ""' release.json)
+          echo "syncing gitee release for ${TAG}"
+
+          # 1) 幂等获取/创建 Gitee 发行版（已存在则复用现有 id）
+          RELEASE_ID=$(curl -s "https://gitee.com/api/v5/repos/flag12321/OASX/releases?access_token=${GITEE_TOKEN}&per_page=100" \
+            | jq -r --arg tag "${TAG}" '.[] | select(.tag_name == $tag) | .id' | head -1)
+          if [ -z "$RELEASE_ID" ]; then
+            PAYLOAD=$(jq -nc \
+              --arg tok "${GITEE_TOKEN}" --arg t "${TAG}" --arg b "${BODY}" \
+              '{access_token: $tok, tag_name: $t, name: $t, body: $b}')
+            RELEASE_ID=$(curl -s -X POST "https://gitee.com/api/v5/repos/flag12321/OASX/releases" \
+              -H "Content-Type: application/json" -d "${PAYLOAD}" | jq -r '.id')
+          fi
+          echo "gitee release_id=${RELEASE_ID}"
+
+          # 2) 上传所有附件
+          for f in assets/*; do
+            [ -f "$f" ] || continue
+            echo "uploading $f"
+            curl -s -X POST "https://gitee.com/api/v5/repos/flag12321/OASX/releases/${RELEASE_ID}/attach_files" \
+              -F "access_token=${GITEE_TOKEN}" \
+              -F "file=@${f}"
+            echo
+          done
