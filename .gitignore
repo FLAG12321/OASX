@@ -45,6 +45,10 @@ app.*.map.json
 
 /normal/*
 
-# 开发过程中间产物（设计文档、调研笔记），不进版本库
+# 开发过程中间产物（spec / plan / 设计文档 / 调研笔记），不进版本库
+# 版本库只保留说明类（README）与更新日志类（CHANGELOG / CHANGELATEST）文档
 docs/superpowers/
+openspec/
+.superpowers/
 subagents.md
+.claude/

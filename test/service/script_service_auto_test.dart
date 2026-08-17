@@ -12,8 +12,7 @@ import 'package:oasx/service/script_service.dart';
 import 'package:oasx/service/websocket_service.dart';
 import 'package:oasx/views/overview/overview_view.dart';
 
-// 中文注释：ScriptService 自启相关职责已移至 AutoBootService（见
-// docs/superpowers/specs/2026-07-30-auto-boot-design.md），本文件保留
+// 中文注释：ScriptService 自启相关职责已移至 AutoBootService，本文件保留
 // isRunning 与「删除脚本同步移除自启条目」两个契约。
 // GetStorage 底层依赖 path_provider，测试中 mock 该 MethodChannel 返回临时目录。
 void main() {

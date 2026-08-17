@@ -12,8 +12,7 @@ import 'package:oasx/service/server_launcher.dart';
 import 'package:oasx/utils/platform_utils.dart';
 
 // 开机自启全自动流程编排者 + 自启脚本配置状态持有者。
-// 所有平台注册（配置面板登录前即需数据源）；流程编排仅桌面且 --autostart 时执行，
-// 见 spec docs/superpowers/specs/2026-07-30-auto-boot-design.md。
+// 所有平台注册（配置面板登录前即需数据源）；流程编排仅桌面且 --autostart 时执行。
 class AutoBootService extends GetxService {
   final _storage = GetStorage();
 
