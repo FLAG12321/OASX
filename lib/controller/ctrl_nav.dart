@@ -14,6 +14,7 @@ class NavCtrl extends GetxController {
     'Tool': [],
   }.obs;
   var scriptMenuJson = <String, List<String>>{}.obs;
+  bool _reloadingMenus = false;
 
   @override
   Future<void> onInit() async {
@@ -35,6 +36,20 @@ class NavCtrl extends GetxController {
     scriptMenuJson.value = await ApiClient().getScriptMenu();
 
     super.onInit();
+  }
+
+  /// 重新拉取导航菜单；失败时保留上一次成功的菜单，避免任务栏因临时请求失败消失
+  Future<void> reloadMenus() async {
+    if (_reloadingMenus) return;
+    _reloadingMenus = true;
+    try {
+      final homeMenu = await ApiClient().getHomeMenu();
+      final scriptMenu = await ApiClient().getScriptMenu();
+      if (homeMenu.isNotEmpty) homeMenuJson.value = homeMenu;
+      if (scriptMenu.isNotEmpty) scriptMenuJson.value = scriptMenu;
+    } finally {
+      _reloadingMenus = false;
+    }
   }
 
   @override

@@ -36,6 +36,21 @@ final Map<String, String> _us_ui = {
       'Start the server to configure auto-run scripts',
   I18n.autoRunScriptDelayLabel: 'Delay (s)',
   I18n.autoRunScriptRefresh: 'Refresh',
+  // 脚本启停中间态与失败原因（英文文案与 i18n_content 默认值一致，此处显式登记便于维护）
+  I18n.script_starting: 'Starting...',
+  I18n.script_stopping: 'Stopping...',
+  I18n.script_start_failed: 'Failed to start script',
+  I18n.script_stop_failed: 'Failed to stop script',
+  I18n.script_action_not_found: 'Config does not exist',
+  I18n.script_action_conflict:
+      'Config is being modified, please retry later',
+  I18n.script_action_lock_timeout: 'Config is locked, please retry later',
+  I18n.script_action_server_error:
+      'Script startup failed, please check the server log',
+  I18n.config_processing: 'Processing...',
+  I18n.setting_save_failed: 'Setting save failed',
+  I18n.menu_load_failed: 'Menu load failed',
+  I18n.retry: 'Retry',
 };
 
 final Map<String, String> _us_script = {

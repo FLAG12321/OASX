@@ -7,6 +7,7 @@ import 'package:oasx/api/api_client.dart';
 import 'package:oasx/api/script_log_models.dart';
 import 'package:oasx/component/log/log_mixin.dart';
 import 'package:oasx/component/log/log_widget.dart';
+import 'package:oasx/component/busy_indicator.dart';
 import 'package:oasx/model/script_model.dart';
 import 'package:oasx/service/script_service.dart';
 
@@ -190,25 +191,55 @@ class _SchedulerWidget extends StatelessWidget {
           style: Theme.of(context).textTheme.titleMedium),
       <Widget>[
         Obx(() {
-          return switch (controller.scriptModel.state.value) {
-            ScriptState.running => const SpinKitChasingDots(
-                color: Colors.green,
-                size: 22,
-              ),
-            ScriptState.inactive =>
-              const Icon(Icons.donut_large, size: 26, color: Colors.grey),
-            ScriptState.warning =>
-              const SpinKitDoubleBounce(color: Colors.orange, size: 26),
-            ScriptState.updating => const Icon(Icons.browser_updated_rounded,
-                size: 26, color: Colors.blue),
-          };
+          final state = controller.scriptModel.state.value;
+          // 状态图标切换加淡入淡出：中间态与终态之间若硬跳变，
+          // 用户会怀疑「按键到底有没有生效」
+          return AnimatedSwitcher(
+            duration: const Duration(milliseconds: 250),
+            // 不同状态可能渲染同类型 widget（starting/stopping 都是 SpinKitPulse），
+            // 必须按状态显式给 key，否则不触发过渡
+            child: KeyedSubtree(
+              key: ValueKey(state),
+              child: switch (state) {
+                ScriptState.running => const SpinKitChasingDots(
+                    color: Colors.green,
+                    size: 22,
+                  ),
+                ScriptState.inactive =>
+                  const Icon(Icons.donut_large, size: 26, color: Colors.grey),
+                ScriptState.warning =>
+                  const SpinKitDoubleBounce(color: Colors.orange, size: 26),
+                ScriptState.updating => const Icon(
+                    Icons.browser_updated_rounded,
+                    size: 26,
+                    color: Colors.blue),
+                // 前端伪状态：正在等后端启停响应（启动含最长约 5s 的子进程握手）。
+                // 用与 stopping 一致的中性灰脉冲，避免绿色被误读为「已运行成功」
+                ScriptState.starting =>
+                  const SpinKitPulse(color: Colors.grey, size: 26),
+                ScriptState.stopping =>
+                  const SpinKitPulse(color: Colors.grey, size: 26),
+              },
+            ),
+          );
         }),
         Obx(() {
+          final state = controller.scriptModel.state.value;
+          final busy = state.isBusy;
           return IconButton(
-            onPressed: () => {controller.toggleScript()},
-            icon: const Icon(Icons.power_settings_new_rounded),
-            isSelected:
-                controller.scriptModel.state.value == ScriptState.running,
+            // 中间态禁用，直接消除「看似没生效 → 重复点击」的根因
+            onPressed: busy ? null : () => controller.toggleScript(),
+            tooltip: busy
+                ? (state == ScriptState.starting
+                        ? I18n.script_starting
+                        : I18n.script_stopping)
+                    .tr
+                : null,
+            icon: BusyTransition(
+              busy: busy,
+              child: const Icon(Icons.power_settings_new_rounded),
+            ),
+            isSelected: state == ScriptState.running,
           );
         }),
       ].toRow(mainAxisAlignment: MainAxisAlignment.center)

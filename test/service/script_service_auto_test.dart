@@ -10,6 +10,7 @@ import 'package:oasx/model/script_model.dart';
 import 'package:oasx/service/auto_boot_service.dart';
 import 'package:oasx/service/script_service.dart';
 import 'package:oasx/service/websocket_service.dart';
+import 'package:oasx/views/overview/overview_view.dart';
 
 // 中文注释：ScriptService 自启相关职责已移至 AutoBootService（见
 // docs/superpowers/specs/2026-07-30-auto-boot-design.md），本文件保留
@@ -47,6 +48,19 @@ void main() {
     expect(service.isRunning('oas1'), isTrue);
   });
 
+  // 中文注释：锁定 isRunning 不把前端伪状态算作运行态。
+  // AutoBootService 用它做「跳过已运行」与「启动结果采样」：若 starting 被算成
+  // running，采样会在后端尚未确认启动时就提示成功；stopping 被算成 running
+  // 则停止请求在途期间会重复判定为运行中。
+  test('isRunning 排除 starting/stopping 伪状态', () async {
+    final service = _buildScriptService();
+    service.addScriptModel('oas1');
+    service.scriptModelMap['oas1']!.update(state: ScriptState.starting);
+    expect(service.isRunning('oas1'), isFalse);
+    service.scriptModelMap['oas1']!.update(state: ScriptState.stopping);
+    expect(service.isRunning('oas1'), isFalse);
+  });
+
   // 中文注释：锁定删除脚本时同步移除 AutoBootService 中的自启条目
   test('deleteScriptModel 同步移除 AutoBootService 自启条目', () async {
     final autoBoot = Get.find<AutoBootService>();
@@ -55,6 +69,36 @@ void main() {
     service.addScriptModel('oas1');
     service.deleteScriptModel('oas1');
     expect(autoBoot.isSelected('oas1'), isFalse);
+  });
+
+  // 中文注释：锁定 ensureScriptModel 在模型缺失时按需创建，Overview 不再因
+  // 启动时序拿到 null 而空指针（修复「启动后点击 oas1 有概率不出现 task 列表」）。
+  test('ensureScriptModel 模型不存在时按需创建', () {
+    final service = _buildScriptService();
+    expect(service.findScriptModel('oas1'), isNull);
+    final model = service.ensureScriptModel('oas1');
+    expect(service.findScriptModel('oas1'), same(model));
+    expect(model.name, 'oas1');
+  });
+
+  test('ensureScriptModel 已存在时复用同一实例', () {
+    final service = _buildScriptService();
+    service.addScriptModel('oas1');
+    final before = service.scriptModelMap['oas1'];
+    expect(service.ensureScriptModel('oas1'), same(before));
+  });
+
+  // 中文注释：OverviewController 在模型尚未由 ScriptService.onInit 创建时
+  // 也能正常构造并持有模型，打开 Overview 不会抛空指针。
+  test('OverviewController 模型缺失时经 ensureScriptModel 兜底', () {
+    final service = _buildScriptService();
+    final controller = OverviewController(
+      name: 'oas1',
+      scriptServiceOverride: service,
+      loadLogWindow: (_, {cursor, limitLines = 500}) async => null,
+    );
+    expect(controller.scriptModel.name, 'oas1');
+    expect(service.findScriptModel('oas1'), isNotNull);
   });
 }
 

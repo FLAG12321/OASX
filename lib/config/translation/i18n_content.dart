@@ -23,6 +23,8 @@ class I18n {
   static const String network_error_code = 'Network Error Code';
   static const String network_connect_timeout = 'Network Connect Timeout';
   static const String network_not_found = 'Network Not Found';
+  static const String menu_load_failed = 'Menu load failed';
+  static const String retry = 'Retry';
   static const String scheduler = 'scheduler';
   static const String running = 'Running';
   static const String pending = 'Pendings';
@@ -83,9 +85,26 @@ class I18n {
   static const String config_add = 'Add new config';
   static const String config_copy_from_exist = 'Copy from existing config';
   static const String setting_saved = 'Setting saved';
+  static const String setting_save_failed = 'Setting save failed';
   static const String save = 'Save';
   static const String none = 'None';
   static const String deployEditHint = 'Edit deploy.yaml here...';
+
+  // 脚本启停中间态与失败原因文案。后端 GET /{name}/start 在子进程握手完成后才返回
+  // （最长约 5s），期间 UI 停留在「启动中」伪状态，需要这些文案表达进度与失败原因。
+  static const String script_starting = 'Starting...';
+  static const String script_stopping = 'Stopping...';
+  static const String script_start_failed = 'Failed to start script';
+  static const String script_stop_failed = 'Failed to stop script';
+  static const String script_action_not_found = 'Config does not exist';
+  static const String script_action_conflict =
+      'Config is being modified, please retry later';
+  static const String script_action_lock_timeout =
+      'Config is locked, please retry later';
+  static const String script_action_server_error =
+      'Script startup failed, please check the server log';
+  // 配置增删改期间的进度遮罩提示
+  static const String config_processing = 'Processing...';
 
   // 菜单项相关
   static const String overview = 'Overview';

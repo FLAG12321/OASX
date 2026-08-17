@@ -14,6 +14,7 @@ import 'package:expansion_tile_group/expansion_tile_group.dart';
 import 'dart:async';
 
 import 'package:oasx/api/api_client.dart';
+import 'package:oasx/component/busy_indicator.dart';
 
 import '../../config/translation/i18n_content.dart';
 
@@ -72,7 +73,8 @@ class Args extends StatelessWidget {
 }
 
 class ArgumentView extends StatefulWidget {
-  final void Function(String? config, String? task, String? group,
+  // 返回真实落盘结果，UI 据此决定提示「已保存」还是「保存失败」
+  final Future<bool> Function(String? config, String? task, String? group,
       String argument, String type, dynamic value) setArgument;
   final String Function() getGroupName;
   final int index;
@@ -92,6 +94,9 @@ class ArgumentView extends StatefulWidget {
 class _ArgumentViewState extends State<ArgumentView> {
   Timer? timer;
   bool landscape = true;
+
+  // 落盘中标记：从发起 PUT 到拿到结果为止为 true，标题右侧显示转圈
+  bool _saving = false;
 
   ArgumentModel get model {
     ArgsController controller = Get.find();
@@ -141,16 +146,31 @@ class _ArgumentViewState extends State<ArgumentView> {
 
   Widget _title() {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      SelectableText(
-        model.title.tr,
-        style: Theme.of(context).textTheme.bodyMedium,
-      ),
+      Row(children: [
+        Flexible(
+          child: SelectableText(
+            model.title.tr,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+        ),
+        _savingIndicator(),
+      ]),
       if (model.description != null && model.description!.isNotEmpty)
         SelectableText(
           model.description!.tr,
           style: Theme.of(context).textTheme.bodySmall,
         ),
     ]);
+  }
+
+  /// 落盘中的过渡指示：与标题同行，固定 12px 占位避免出现/消失时文字跳动。
+  /// 复用 BusyTransition 承载淡入淡出，与脚本启停按钮同一套观感。
+  Widget _savingIndicator() {
+    return BusyTransition(
+      busy: _saving,
+      size: 12,
+      child: const SizedBox(width: 12, height: 12),
+    ).paddingOnly(left: 6);
   }
 
   Widget _form() {
@@ -229,70 +249,70 @@ class _ArgumentViewState extends State<ArgumentView> {
 
   void onCheckboxChanged(bool? value) {
     setState(() {
-      widget.setArgument(
-          "", "", widget.getGroupName(), model.title, 'boolean', value);
       model.value = value;
     });
-    showSnakbar(value);
+    unawaited(_save('boolean', value));
   }
 
   void onStringChanged(String? value) {
-    widget.setArgument(
-        "", "", widget.getGroupName(), model.title, 'string', value);
-    showSnakbar(value);
+    unawaited(_save('string', value));
   }
 
   void onNumberChanged(String? value) {
-    widget.setArgument(
-        "", "", widget.getGroupName(), model.title, 'number', value);
-    showSnakbar(value);
+    unawaited(_save('number', value));
   }
 
   void onIntegerChanged(String? value) {
-    widget.setArgument(
-        "", "", widget.getGroupName(), model.title, 'integer', value);
-    showSnakbar(value);
+    unawaited(_save('integer', value));
   }
 
   void onEnumChanged(String? value) {
     setState(() {
       model.value = value;
-      widget.setArgument(
-          "", "", widget.getGroupName(), model.title, 'enum', value);
     });
-    showSnakbar(value);
+    unawaited(_save('enum', value));
   }
 
   void onDateTimeChanged(String? value) {
     setState(() {
       model.value = value;
-      widget.setArgument(
-          "", "", widget.getGroupName(), model.title, 'date_time', value);
     });
-    showSnakbar(value);
+    unawaited(_save('date_time', value));
   }
 
   void onTimeDeltaChanged(String? value) {
     setState(() {
       model.value = value;
-      widget.setArgument(
-          "", "", widget.getGroupName(), model.title, 'time_delta', value);
     });
-    showSnakbar(value);
+    unawaited(_save('time_delta', value));
   }
 
   void onTimeChanged(String? value) {
     setState(() {
       model.value = value;
-      widget.setArgument(
-          "", "", widget.getGroupName(), model.title, 'time', value);
     });
-    showSnakbar(value);
+    unawaited(_save('time', value));
   }
 
 // -----------------------------------------------------------------------------
-  void showSnakbar(dynamic value) {
-    Get.snackbar(I18n.setting_saved.tr, "$value",
+  /// 统一落盘通路：置落盘中 → 等 PUT 结果 → 按真实结果提示。
+  /// 原实现不等结果就弹「设置已保存」，PUT 失败时 UI 也照样说成功。
+  Future<void> _save(String type, dynamic value) async {
+    if (mounted) setState(() => _saving = true);
+    bool ok = false;
+    try {
+      ok = await widget.setArgument(
+          "", "", widget.getGroupName(), model.title, type, value);
+    } finally {
+      // 抛错也必须退出落盘中，否则转圈永久停留
+      if (mounted) setState(() => _saving = false);
+    }
+    showSnakbar(ok, value);
+  }
+
+  void showSnakbar(bool ok, dynamic value) {
+    Get.snackbar(
+        ok ? I18n.setting_saved.tr : I18n.setting_save_failed.tr, "$value",
         duration: const Duration(seconds: 1));
   }
 }

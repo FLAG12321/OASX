@@ -18,7 +18,7 @@ class OverviewController extends GetxController with LogMixin {
   late final scriptService =
       _scriptServiceOverride ?? Get.find<ScriptService>();
   late final scriptModel =
-      _scriptModelOverride ?? scriptService.findScriptModel(name)!;
+      _scriptModelOverride ?? scriptService.ensureScriptModel(name);
 
   // 中文注释：历史窗口游标；reachedStart 后不再请求更早窗口。
   // 加载中状态用 LogMixin 的 historyLoading（RxBool），UI 据此显示占位动画。
@@ -214,11 +214,15 @@ class OverviewController extends GetxController with LogMixin {
   }
 
   Future<void> toggleScript() async {
+    // 中间态期间忽略重复点击。UI 已禁用按钮，这里是第二道防线：
+    // 键盘/程序化触发或动画未落地时仍可能重入
+    if (scriptModel.isBusy) return;
     if (scriptModel.state.value != ScriptState.running) {
-      scriptService.startScript(name);
+      // 先清日志再启动，避免新实例的首批日志被清掉
       clearLog();
+      await scriptService.startScript(name);
     } else {
-      scriptService.stopScript(name);
+      await scriptService.stopScript(name);
     }
   }
 }

@@ -44,20 +44,23 @@ class ArgsController extends GetxController {
     groupsName.value = groupsNameTemp;
   }
 
-  Future<void> setArgument(String? config, String? task, String? group,
+  Future<bool> setArgument(String? config, String? task, String? group,
       String argument, String type, var value) async {
     if (config == null || task == null || group == null) {
-      return;
+      return false;
     }
     if (config.isEmpty || task.isEmpty || group.isEmpty) {
       NavCtrl navCtrl = Get.find();
       config = navCtrl.selectedScript.value;
       task = navCtrl.selectedMenu.value;
     }
-    await ApiClient().putScriptArg(config, task, group, argument, type, value);
+    // 返回真实落盘结果：原实现丢弃返回值，UI 因此在 PUT 还没回来时就宣布「已保存」
+    final ok =
+        await ApiClient().putScriptArg(config, task, group, argument, type, value);
     printInfo(
         info:
-            "setArgument config: $config, task: $task, group: $group, argument: $argument, value: $value");
+            "setArgument config: $config, task: $task, group: $group, argument: $argument, value: $value, ok: $ok");
+    return ok;
   }
 }
 

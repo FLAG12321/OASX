@@ -3,6 +3,7 @@ library nav;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:oasx/component/busy_indicator.dart';
 import 'package:oasx/model/script_model.dart';
 import 'package:oasx/service/auto_boot_service.dart';
 import 'package:oasx/service/locale_service.dart';
@@ -133,8 +134,12 @@ class Nav extends StatelessWidget {
         title: I18n.config_add.tr,
         middleText: '',
         onConfirm: () async {
-          await controllerNav.addConfig(newName, template.value);
           Get.back();
+          // 复制配置要等后端往返（读模板 + 写新文件 + 重列配置），
+          // 期间盖进度遮罩，避免对话框一关就像什么都没发生
+          await runWithBusyOverlay(
+              () => controllerNav.addConfig(newName, template.value),
+              label: I18n.config_add.tr);
         },
         content: <Widget>[
           Text(I18n.new_name.tr),
@@ -232,7 +237,10 @@ class Nav extends StatelessWidget {
           return;
         }
         Get.back();
-        await navController.renameConfig(oldName, newName);
+        // 重命名要等后端改文件名并重列配置，期间盖进度遮罩
+        await runWithBusyOverlay(
+            () => navController.renameConfig(oldName, newName),
+            label: I18n.rename.tr);
       },
       onCancel: () {},
     );
@@ -250,7 +258,9 @@ class Nav extends StatelessWidget {
       middleText: '${I18n.delete_confirm.tr} "$name"?',
       onConfirm: () async {
         Get.back();
-        await navController.deleteConfig(name);
+        // 删除要等后端删文件并重列配置，期间盖进度遮罩
+        await runWithBusyOverlay(() => navController.deleteConfig(name),
+            label: I18n.delete.tr);
       },
       onCancel: () {},
     );
@@ -261,8 +271,11 @@ class Nav extends StatelessWidget {
     try {
       final wsService = Get.find<WebSocketService>();
       final scriptModel = Get.find<ScriptService>().findScriptModel(scriptName);
+      // 伪状态（starting/stopping）也必须拦住：启停请求在途时改配置文件，
+      // 会撞上后端正在读取的那份快照，落到 generation 冲突或半生效状态
       if (scriptModel != null &&
-          scriptModel.state.value == ScriptState.running) {
+          (scriptModel.state.value == ScriptState.running ||
+              scriptModel.isBusy)) {
         Get.snackbar(I18n.tip.tr, I18n.config_update_tip.tr,
             duration: const Duration(milliseconds: 2000));
         return false;

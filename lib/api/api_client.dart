@@ -30,6 +30,16 @@ class ApiResult<T> {
   ApiResult.failure(this.error, [this.code]) : data = null;
 }
 
+/// 脚本启停结果：是否成功 + 已本地化的失败原因。
+/// 启停接口成功时无响应体，`ApiResult.isSuccess`（data != null）会把 200 误判为失败，
+/// 因此单独用这个类型表达结果，调用方据此决定中间态是落定还是回落。
+class ScriptActionResult {
+  final bool ok;
+  final String? reason;
+
+  const ScriptActionResult(this.ok, [this.reason]);
+}
+
 class ApiClient {
   // 单例
   static final ApiClient _instance = ApiClient._internal();
@@ -373,6 +383,61 @@ class ApiClient {
     return ScriptLogWindow.fromWindowJson(
       Map<String, dynamic>.from(res.data as Map),
     );
+  }
+
+// ---------------------------------   脚本启停   ----------------------------------
+
+  /// 启动脚本实例。后端 `GET /{name}/start` 在子进程 generation 握手完成后才返回
+  /// （最长约 5s），所以这里 await 落地即代表启动结果已确定，前端可据此结束
+  /// 「启动中」中间态；原实现走 WS 单向 'start'，既没有结束信号也拿不到失败原因。
+  Future<ScriptActionResult> startScript(String name) {
+    return _scriptAction(
+        '/${Uri.encodeComponent(name)}/start', I18n.script_start_failed);
+  }
+
+  /// 停止脚本实例。后端在 `script_process.stop()` 完成后才返回，语义同上。
+  Future<ScriptActionResult> stopScript(String name) {
+    return _scriptAction(
+        '/${Uri.encodeComponent(name)}/stop', I18n.script_stop_failed);
+  }
+
+  /// 启停接口共用通路。这里不复用 [request]：
+  /// 1. 成功时后端无响应体，`ApiResult.isSuccess` 会把 200 误判为失败；
+  /// 2. 需要按 404/409/500/503 给出针对性文案，而不是通用「网络错误 + 码」。
+  Future<ScriptActionResult> _scriptAction(String path, String failedTitle) async {
+    try {
+      final res = await get(path);
+      return res.when(
+        success: (_) => const ScriptActionResult(true),
+        failure: (msg, code) {
+          final reason = _scriptActionReason(code, msg);
+          printError(info: '${failedTitle.tr}: $msg | $code');
+          Get.snackbar(failedTitle.tr, reason,
+              duration: const Duration(seconds: 3));
+          return ScriptActionResult(false, reason);
+        },
+      );
+    } catch (e) {
+      // 连接不上（server 已退出）等场景：dio 抛异常而非返回 failure
+      printError(info: '${failedTitle.tr}: $e');
+      final reason = I18n.network_connect_timeout.tr;
+      Get.snackbar(failedTitle.tr, reason,
+          duration: const Duration(seconds: 3));
+      return ScriptActionResult(false, reason);
+    }
+  }
+
+  /// 把后端状态码映射成用户能看懂的原因；未登记的码回落为「错误代码 + 原始信息」。
+  /// 码的含义见 script_router.script_start：404 配置不存在、409 拒绝启动/身份冲突、
+  /// 500 握手超时或配置损坏、503 配置锁超时。
+  String _scriptActionReason(int code, String msg) {
+    return switch (code) {
+      404 => I18n.script_action_not_found.tr,
+      409 => I18n.script_action_conflict.tr,
+      500 => I18n.script_action_server_error.tr,
+      503 => I18n.script_action_lock_timeout.tr,
+      _ => '${I18n.network_error_code.tr}: $code | $msg',
+    };
   }
 
 // ---------------------------------   Snackbar --------------------------------
