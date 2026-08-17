@@ -14,7 +14,12 @@ class NavCtrl extends GetxController {
     'Tool': [],
   }.obs;
   var scriptMenuJson = <String, List<String>>{}.obs;
+  // 菜单是否处于加载/自动重试中：true 时任务栏显示加载动画，false 且菜单仍为空
+  // 则显示「加载失败，请重试」。初始为 true，onInit 的加载流程负责落定终态。
+  final menuLoading = true.obs;
   bool _reloadingMenus = false;
+  static const int _maxMenuLoadTries = 3; // 含首次加载的自动重试次数
+  static const Duration _menuRetryDelay = Duration(seconds: 2);
 
   @override
   Future<void> onInit() async {
@@ -32,22 +37,32 @@ class NavCtrl extends GetxController {
     }
 
     navNameList.value = await ApiClient().getConfigList();
-    homeMenuJson.value = await ApiClient().getHomeMenu();
-    scriptMenuJson.value = await ApiClient().getScriptMenu();
+    // 菜单加载失败时自动重试，期间任务栏显示加载动画
+    await reloadMenus();
 
     super.onInit();
   }
 
-  /// 重新拉取导航菜单；失败时保留上一次成功的菜单，避免任务栏因临时请求失败消失
+  /// 拉取导航菜单；失败时保留上一次成功的菜单并自动重试，
+  /// 全部重试失败后置 menuLoading=false，由 UI 显示「加载失败，请重试」入口
   Future<void> reloadMenus() async {
     if (_reloadingMenus) return;
     _reloadingMenus = true;
+    menuLoading.value = true;
     try {
-      final homeMenu = await ApiClient().getHomeMenu();
-      final scriptMenu = await ApiClient().getScriptMenu();
-      if (homeMenu.isNotEmpty) homeMenuJson.value = homeMenu;
-      if (scriptMenu.isNotEmpty) scriptMenuJson.value = scriptMenu;
+      for (var i = 0; i < _maxMenuLoadTries; i++) {
+        final homeMenu = await ApiClient().getHomeMenu();
+        final scriptMenu = await ApiClient().getScriptMenu();
+        if (homeMenu.isNotEmpty) homeMenuJson.value = homeMenu;
+        if (scriptMenu.isNotEmpty) scriptMenuJson.value = scriptMenu;
+        // 两份菜单都取到才算成功；否则隔一段重试
+        if (homeMenu.isNotEmpty && scriptMenu.isNotEmpty) break;
+        if (i < _maxMenuLoadTries - 1) {
+          await Future.delayed(_menuRetryDelay);
+        }
+      }
     } finally {
+      menuLoading.value = false;
       _reloadingMenus = false;
     }
   }

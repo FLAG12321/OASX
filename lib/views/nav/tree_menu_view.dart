@@ -10,13 +10,41 @@ class TreeMenuView extends StatelessWidget {
           ? controller.homeMenuJson
           : controller.scriptMenuJson;
       if (data.isEmpty) {
-        return _menuLoadError(controller, context);
+        // 菜单为空：加载/自动重试中显示加载动画，全部重试失败后才显示失败入口
+        return controller.menuLoading.value
+            ? _menuLoading(controller, context)
+            : _menuLoadError(controller, context);
       }
       return ScreenTypeLayout.builder(
           mobile: (_) => _mobile(controller, data, context),
           tablet: (_) => _mobile(controller, data, context),
           desktop: (_) => _desktop(controller, data));
     });
+  }
+
+  // 菜单加载/自动重试中：显示加载动画，避免空态一闪而过让用户误以为失败
+  Widget _menuLoading(NavCtrl controller, BuildContext context) {
+    return SizedBox(
+      width: 180,
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(strokeWidth: 2.5),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              I18n.menu_loading.tr,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   // 菜单加载失败时给出可操作入口，避免用户只能通过重开 OASX 恢复

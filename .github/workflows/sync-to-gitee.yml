@@ -4,6 +4,7 @@ name: Sync to Gitee
 # FLAG12321/OASX 同步到 Gitee flag12321/OASX：
 # - sync-code：镜像 master 与全部 tags
 # - sync-release：把 GitHub release（含安装包等附件）镜像为 Gitee 发行版
+# 也可通过 workflow_dispatch 手动触发（release_tag 留空则同步最新 release）。
 
 on:
   push:
@@ -12,6 +13,11 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "要同步的 release tag（留空自动用最新）"
+        required: false
+        type: string
 
 jobs:
   sync-code:
@@ -33,17 +39,31 @@ jobs:
 
   sync-release:
     needs: sync-code
-    # 只在 release 发布事件触发；tag 推送/workflow_dispatch 只走代码同步
-    if: github.event_name == 'release'
+    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
+      - name: Determine release tag
+        id: tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            TAG="${{ github.event.release.tag_name }}"
+          else
+            TAG="${{ inputs.release_tag }}"
+            if [ -z "$TAG" ]; then
+              TAG=$(gh release list --repo "${{ github.repository }}" --limit 1 --json tagName --jq '.[0].tagName')
+            fi
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
       - name: Download GitHub release assets
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p assets
-          # 发布事件里没有附件时直接跳过，不报错
-          gh release download "${{ github.event.release.tag_name }}" \
+          # 该 release 无附件时跳过，不报错
+          gh release download "${{ steps.tag.outputs.tag }}" \
             --repo "${{ github.repository }}" \
             --dir assets --clobber || true
 
@@ -52,11 +72,8 @@ jobs:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
         run: |
           set -e
-          # 把 release 事件转成 JSON 文件，安全提取 tag/body（含换行与引号）
-          echo '${{ toJSON(github.event.release) }}' > release.json
-          TAG=$(jq -r '.tag_name' release.json)
-          BODY=$(jq -r '.body // ""' release.json)
-          echo "syncing gitee release for ${TAG}"
+          TAG="${{ steps.tag.outputs.tag }}"
+          BODY=$(gh release view "${TAG}" --repo "${{ github.repository }}" --json body --jq '.body')
 
           # 1) 幂等获取/创建 Gitee 发行版（已存在则复用现有 id）
           RELEASE_ID=$(curl -s "https://gitee.com/api/v5/repos/flag12321/OASX/releases?access_token=${GITEE_TOKEN}&per_page=100" \
@@ -64,16 +81,23 @@ jobs:
           if [ -z "$RELEASE_ID" ]; then
             PAYLOAD=$(jq -nc \
               --arg tok "${GITEE_TOKEN}" --arg t "${TAG}" --arg b "${BODY}" \
-              '{access_token: $tok, tag_name: $t, name: $t, body: $b}')
+              '{access_token: $tok, tag_name: $t, name: $t, body: $b, target_commitish: "master"}')
             RELEASE_ID=$(curl -s -X POST "https://gitee.com/api/v5/repos/flag12321/OASX/releases" \
               -H "Content-Type: application/json" -d "${PAYLOAD}" | jq -r '.id')
           fi
           echo "gitee release_id=${RELEASE_ID}"
 
-          # 2) 上传所有附件
+          # 2) 跳过已存在的附件，避免重复上传报错
+          EXISTING=$(curl -s "https://gitee.com/api/v5/repos/flag12321/OASX/releases/${RELEASE_ID}/attach_files?access_token=${GITEE_TOKEN}" \
+            | jq -r '.[].name')
           for f in assets/*; do
             [ -f "$f" ] || continue
-            echo "uploading $f"
+            name=$(basename "$f")
+            if echo "$EXISTING" | grep -qxF "$name"; then
+              echo "skip existing asset: ${name}"
+              continue
+            fi
+            echo "uploading ${f}"
             curl -s -X POST "https://gitee.com/api/v5/repos/flag12321/OASX/releases/${RELEASE_ID}/attach_files" \
               -F "access_token=${GITEE_TOKEN}" \
               -F "file=@${f}"

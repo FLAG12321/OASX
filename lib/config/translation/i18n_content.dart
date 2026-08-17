@@ -24,6 +24,7 @@ class I18n {
   static const String network_connect_timeout = 'Network Connect Timeout';
   static const String network_not_found = 'Network Not Found';
   static const String menu_load_failed = 'Menu load failed';
+  static const String menu_loading = 'Loading menu...';
   static const String retry = 'Retry';
   static const String scheduler = 'scheduler';
   static const String running = 'Running';

@@ -15,10 +15,31 @@ class _FakeNavCtrl extends NavCtrl {
 }
 
 void main() {
-  testWidgets('菜单为空时显示失败提示与重试入口', (tester) async {
+  testWidgets('菜单为空且加载中时显示加载动画', (tester) async {
     final nav = _FakeNavCtrl();
     nav.isHomeMenu.value = false;
     nav.scriptMenuJson.value = {};
+    nav.menuLoading.value = true;
+    Get.put<NavCtrl>(nav);
+
+    await tester.pumpWidget(
+      const GetMaterialApp(home: Scaffold(body: TreeMenuView())),
+    );
+
+    // 加载中：显示转圈与加载文案，不显示失败入口
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.text(I18n.menu_loading.tr), findsOneWidget);
+    expect(find.byIcon(Icons.error_outline_rounded), findsNothing);
+    expect(find.byIcon(Icons.refresh_rounded), findsNothing);
+
+    Get.reset();
+  });
+
+  testWidgets('菜单为空且加载失败时显示失败提示与重试入口', (tester) async {
+    final nav = _FakeNavCtrl();
+    nav.isHomeMenu.value = false;
+    nav.scriptMenuJson.value = {};
+    nav.menuLoading.value = false;
     Get.put<NavCtrl>(nav);
 
     await tester.pumpWidget(

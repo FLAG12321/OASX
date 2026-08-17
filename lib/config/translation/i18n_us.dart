@@ -50,6 +50,7 @@ final Map<String, String> _us_ui = {
   I18n.config_processing: 'Processing...',
   I18n.setting_save_failed: 'Setting save failed',
   I18n.menu_load_failed: 'Menu load failed',
+  I18n.menu_loading: 'Loading menu...',
   I18n.retry: 'Retry',
 };
 
