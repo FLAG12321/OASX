@@ -39,7 +39,8 @@ jobs:
 
   sync-release:
     needs: sync-code
-    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
+    # push（同步代码时同步最新 release）、发布 release、手动触发 三种场景都同步
+    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch' || github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - name: Determine release tag
@@ -52,8 +53,14 @@ jobs:
           else
             TAG="${{ inputs.release_tag }}"
             if [ -z "$TAG" ]; then
+              # push 事件或未指定 release_tag：自动取 GitHub 最新 release
               TAG=$(gh release list --repo "${{ github.repository }}" --limit 1 --json tagName --jq '.[0].tagName')
             fi
+          fi
+          # 仓库还没有任何 release 时跳过，不报错
+          if [ -z "$TAG" ]; then
+            echo "no release to sync, skip"
+            exit 0
           fi
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
 
@@ -69,6 +76,7 @@ jobs:
 
       - name: Mirror release and assets to Gitee
         env:
+          GH_TOKEN: ${{ github.token }}
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
         run: |
           set -e
