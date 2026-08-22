@@ -22,6 +22,32 @@ part './group_view.dart';
 part './date_time_picker.dart';
 part '../../controller/args/args_controller.dart';
 
+/// Checkbox 默认点击热区边长（MaterialTapTargetSize.padded）。
+/// 实测值，SDK 未导出常量；下面的对齐测试会在 SDK 改动时失败。
+const double _checkboxTapTarget = 48;
+
+/// 勾选框描边方块左缘相对点击热区左缘的偏移。
+/// 方块被居中放在热区里，所以偏移是两者边长差的一半。
+const double _checkboxGeometryInset = (_checkboxTapTarget - Checkbox.width) / 2;
+
+/// 视觉回收量：几何对齐后再往右让回来的像素数。
+///
+/// 按 [_checkboxGeometryInset] 整量左移后，测出的方块左缘与输入框左缘严格相等
+/// （实测两者都在同一列 x），但看上去勾选框偏左了一点，原因是两种控件「可见的
+/// 第一个像素」不在同一处：
+///   * 勾选框的描边是 2px 宽、沿 18px 路径居中画的，墨迹左缘落在方块外 1px；
+///   * 同列的输入框/时间选择器可见的是文字，字形自带左侧边距（Cascadia 之外的
+///     正文字体约 1~2px），墨迹左缘落在盒子内。
+/// 两者相差 3px 左右，几何对齐反而让勾选框看着突出去。
+///
+/// 单独留一个常量而不是把 3 揉进上面的算式：几何量是 SDK 推导的、有测试锁死，
+/// 这个是纯视觉微调，要调只动这一个数。
+const double _checkboxOpticalPullBack = 3;
+
+/// 勾选框实际左移量。
+const double _checkboxInset =
+    _checkboxGeometryInset - _checkboxOpticalPullBack;
+
 class Args extends StatelessWidget {
   const Args({Key? key}) : super(key: key);
 
@@ -173,11 +199,37 @@ class _ArgumentViewState extends State<ArgumentView> {
     ).paddingOnly(left: 6);
   }
 
+  /// bool 参数的勾选框。
+  ///
+  /// 为什么要额外左移：Checkbox 画出来的描边方块只有 [Checkbox.width]（18px），
+  /// 却被居中摆在 48px 的点击热区中央（SDK checkbox.dart 里
+  /// `origin = size / 2 - Size.square(_kEdgeSize) / 2`），于是方块左缘比同列
+  /// 其他控件（输入框 / 下拉 / 时间选择器都从列左缘 0 开始）右移了
+  /// (48 - 18) / 2 = 15px，看起来就是「勾选框没和别人对齐」。
+  ///
+  /// 左移量 [_checkboxInset] = 几何量 15 减去视觉回收量 3：整量左移会让描边看着
+  /// 比邻列文字突出去一点（描边墨迹在盒外、文字墨迹在盒内，详见那两个常量）。
+  ///
+  /// 用 Transform.translate 而不是缩小热区：把 materialTapTargetSize 调成
+  /// shrinkWrap 也只降到 40px（实测），配合最紧的 visualDensity 仍是 24px，
+  /// 永远大于 18px、永远对不齐，而且会把点击热区压到无障碍建议的 40px 以下。
+  /// translate 只移动绘制与命中测试、不改布局尺寸，热区完整保留。
+  Widget _checkbox() {
+    // 用显式 Align 而不是 styled_widget 的 .alignment()：Transform 自带一个
+    // 可空的 alignment 字段，而实例成员优先于扩展方法，.alignment(...) 会解析
+    // 成「调用那个 null 字段」而不是扩展方法，直接编译不过。
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Transform.translate(
+        offset: const Offset(-_checkboxInset, 0),
+        child: Checkbox(value: model.value, onChanged: onCheckboxChanged),
+      ),
+    ).constrained(width: landscape ? 200 : null);
+  }
+
   Widget _form() {
     return switch (model.type) {
-      "boolean" => Checkbox(value: model.value, onChanged: onCheckboxChanged)
-          .alignment(Alignment.centerLeft)
-          .constrained(width: landscape ? 200 : null),
+      "boolean" => _checkbox(),
       "string" => TextFormField(
           initialValue: model.value.toString(),
           onChanged: (value) {

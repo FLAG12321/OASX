@@ -64,49 +64,65 @@ class _AutoStartSettingsContentState extends State<AutoStartSettingsContent> {
   Widget build(BuildContext context) {
     final autoStartService = Get.find<AutoStartService>();
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // 开机自启开关；isApplying 时禁用切换，避免并发写系统注册项
-        Obx(() {
-          final applying = autoStartService.isApplying.value;
-          return SwitchListTile(
-            title: Text(I18n.launchAtStartup.tr),
-            value: autoStartService.enableLaunchAtStartup.value,
-            dense: true,
-            onChanged: applying
-                ? null
-                : (v) => autoStartService.updateLaunchAtStartupEnable(v),
-          );
-        }),
-        const Divider(height: 1),
-        Row(children: [
-          Padding(
-            padding: const EdgeInsets.only(left: 16, top: 8, bottom: 4),
-            child: Text(I18n.autoRunScriptConfig.tr,
-                style: Theme.of(context).textTheme.titleSmall),
-          ),
-          // 手动刷新：重新探测 + 拉取列表
-          IconButton(
-            icon: const Icon(Icons.refresh, size: 18),
-            tooltip: I18n.autoRunScriptRefresh.tr,
-            onPressed: _probe,
-          ),
-        ]),
-        switch (_reachable) {
-          // 探测中：占位进度条
-          null => const Padding(
-              padding: EdgeInsets.all(16),
-              child: LinearProgressIndicator(),
+    // 「自启动脚本配置」区块标题样式。「开启自启」开关标题用同一份值：
+    // 两者是并列的两块设置入口，用户要求同字号，写成局部变量而不是各写一遍，
+    // 避免以后改一处漏一处又漂移开。
+    final sectionTitleStyle =
+        Theme.of(context).textTheme.titleSmall?.copyWith(fontSize: 15);
+
+    // 面板内文字整体放大一号，与服务页其余面板（ServerView.panelContentBump）
+    // 保持一致。这里大量控件是不带 style 的裸 Text（脚本名、输入框标签），
+    // 逐处补 style 必然漏改，所以用一层 DefaultTextStyle 覆盖整棵子树。
+    final inherited = DefaultTextStyle.of(context).style;
+    return DefaultTextStyle(
+      style: inherited.copyWith(fontSize: (inherited.fontSize ?? 14) + 1),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 开机自启开关；isApplying 时禁用切换，避免并发写系统注册项
+          Obx(() {
+            final applying = autoStartService.isApplying.value;
+            return SwitchListTile(
+              // 与下方「自启动脚本配置」同字号：SwitchListTile 的 title 默认
+              // 走 bodyLarge，不显式给样式会比区块标题小一号
+              title: Text(I18n.launchAtStartup.tr, style: sectionTitleStyle),
+              value: autoStartService.enableLaunchAtStartup.value,
+              dense: true,
+              onChanged: applying
+                  ? null
+                  : (v) => autoStartService.updateLaunchAtStartupEnable(v),
+            );
+          }),
+          const Divider(height: 1),
+          Row(children: [
+            Padding(
+              padding: const EdgeInsets.only(left: 16, top: 8, bottom: 4),
+              child: Text(I18n.autoRunScriptConfig.tr,
+                  // 区块标题比面板内正文高一级
+                  style: sectionTitleStyle),
             ),
-          // 不可达：提示启动 server（spec §4.4，不提供缓存列表）
-          false => Padding(
-              padding: const EdgeInsets.only(left: 16, bottom: 8),
-              child: Text(I18n.autoRunScriptServerHint.tr),
+            // 手动刷新：重新探测 + 拉取列表
+            IconButton(
+              icon: const Icon(Icons.refresh, size: 18),
+              tooltip: I18n.autoRunScriptRefresh.tr,
+              onPressed: _probe,
             ),
-          true => _buildScriptList(),
-        },
-      ],
+          ]),
+          switch (_reachable) {
+            // 探测中：占位进度条
+            null => const Padding(
+                padding: EdgeInsets.all(16),
+                child: LinearProgressIndicator(),
+              ),
+            // 不可达：提示启动 server（spec §4.4，不提供缓存列表）
+            false => Padding(
+                padding: const EdgeInsets.only(left: 16, bottom: 8),
+                child: Text(I18n.autoRunScriptServerHint.tr),
+              ),
+            true => _buildScriptList(),
+          },
+        ],
+      ),
     );
   }
 

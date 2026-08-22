@@ -84,6 +84,17 @@ class DateTimePickerBaseState extends State<DateTimePickerBase> {
   // 鼠标是否在这个区域内
   bool _isHover = false;
 
+  /// 时间文字字号。比原先的 16 小一号，与周边表单控件的正文字号更协调。
+  ///
+  /// hover 态必须用同一个字号：原实现 hover 时从 16 跳到 17，而 Text 是内容
+  /// 定高的，行高随字号变化，整行会被纵向撑开并顶动同行控件。
+  /// hover 反馈只改颜色，不碰任何影响布局的量。
+  static const double _fontSize = 14;
+
+  /// 组件最小高度，锁死行高不随 hover / 字号变化而跳动。
+  /// 取值略高于 _fontSize 的单行行高，留出基线与降部空间。
+  static const double _minHeight = 22;
+
   @override
   Widget build(BuildContext context) {
     return MouseRegion(
@@ -98,11 +109,18 @@ class DateTimePickerBaseState extends State<DateTimePickerBase> {
           });
         },
         child: GestureDetector(
-          child: Text(widget.value,
-              style: _isHover
-                  ? TextStyle(
-                      color: Theme.of(context).primaryColor, fontSize: 17)
-                  : const TextStyle(fontSize: 16)),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: _minHeight),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(widget.value,
+                  style: TextStyle(
+                    fontSize: _fontSize,
+                    // hover 只改颜色，字号恒定，避免撑开布局
+                    color: _isHover ? Theme.of(context).primaryColor : null,
+                  )),
+            ),
+          ),
           onTap: () {
             showPicker(context, widget.value);
           },
