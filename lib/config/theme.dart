@@ -45,7 +45,11 @@ ThemeData lightTheme = ThemeData(
     titleMedium: TextStyle(),
     // titleMedium: TextStyle(fontWeight: FontWeight.w600),
     titleSmall: TextStyle(),
-  ).apply(fontFamily: 'LatoLato').useSystemChineseFont(Brightness.light),
+    // 全局等宽（CascadiaCode）：让运行日志、统计表、自启动脚本名与延时里的
+    // 数字逐列对齐——这些散落在 3000+ 行视图里，逐处加 fontFamily 必然漏改。
+    // 前提是 log_widget 的级别补空格已按等宽字符差重算（原值照 Lato 标定，
+    // 在等宽下会超量把时间戳列推歪）。中文由 useSystemChineseFont 回退提供。
+  ).apply(fontFamily: 'CascadiaCode').useSystemChineseFont(Brightness.light),
   scaffoldBackgroundColor: const Color.fromRGBO(255, 251, 255, 1),
   navigationRailTheme: const NavigationRailThemeData(
       backgroundColor: Color.fromRGBO(255, 251, 255, 1)),
@@ -65,7 +69,8 @@ ThemeData darkTheme = ThemeData(
     titleLarge: TextStyle(),
     titleMedium: TextStyle(),
     titleSmall: TextStyle(),
-  ).apply(fontFamily: 'LatoLato').useSystemChineseFont(Brightness.dark),
+    // 同 lightTheme：全局等宽，让各处数字逐列对齐
+  ).apply(fontFamily: 'CascadiaCode').useSystemChineseFont(Brightness.dark),
   scaffoldBackgroundColor: const Color.fromRGBO(49, 48, 51, 1),
   navigationRailTheme: const NavigationRailThemeData(
       backgroundColor: Color.fromRGBO(49, 48, 51, 1)),

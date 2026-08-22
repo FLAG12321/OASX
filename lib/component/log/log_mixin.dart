@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:oasx/component/log/log_line_width.dart';
 import 'package:oasx/config/translation/i18n_content.dart';
 
 mixin LogMixin on GetxController {
@@ -124,8 +125,16 @@ mixin LogMixin on GetxController {
     }
   }
 
+  /// 入库前先做行宽归一：一个载荷可能含多行（后端 rich 已按 80 列折过并用
+  /// `\n` 拼在一起），也可能是完全没折过的子进程 stdout。归一后每个元素恰好
+  /// 是一行、且不超过分隔线宽度，满足渲染侧「一元素一行」的不变式
+  /// （`prototypeItem` + `maxLines: 1`，详见 log_line_width.dart）。
+  ///
+  /// 因此本方法可能往 pending 里放入多条：maxLines / maxBuffer 的上限随之
+  /// 按真实行数计（原先一条 30 行的 traceback 只占 1 个名额），这正是这两个
+  /// 上限本来的语义。
   void addLog(String log) {
-    _pendingLogs.add(log);
+    _pendingLogs.addAll(normalizeLogLines(log));
   }
 
   void clearLog() {

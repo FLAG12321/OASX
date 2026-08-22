@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:oasx/api/api_client.dart';
 import 'package:oasx/api/script_log_models.dart';
+import 'package:oasx/component/log/log_line_width.dart';
 import 'package:oasx/component/log/log_mixin.dart';
 import 'package:oasx/component/log/log_widget.dart';
 import 'package:oasx/component/busy_indicator.dart';

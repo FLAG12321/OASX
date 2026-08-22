@@ -127,6 +127,14 @@ flutter:
     - family: LatoLato
       fonts:
         - asset: assets/Lato-Regular.ttf
+    # Cascadia Code：UI 全局字体（见 lib/config/theme.dart），让运行日志、
+    # 统计表、自启动延时里的数字逐列对齐。所有字形同宽 0.5859em，因此后端
+    # rich 以 width=80 渲染的分隔线与数据行天然对齐，前端无需补空格。
+    # 随包分发而非依赖系统已装，保证任何机器表现一致（SIL OFL 允许随应用分发）。
+    # 中文字形由 useSystemChineseFont 的 fontFamilyFallback 提供。
+    - family: CascadiaCode
+      fonts:
+        - asset: assets/CascadiaCode.ttf
 
   # fonts:
   #   - family: Schyler

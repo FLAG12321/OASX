@@ -199,7 +199,14 @@ class OverviewController extends GetxController with LogMixin {
         continue;
       }
       _historyLineKeys.add(line.key);
-      uniqueLines.add(line.text);
+      // 中文注释：历史行同样要做行宽归一。它取自**文件**日志（rich 那侧是
+      // width=160，见 OAS module/logger.py 的 file_console），比 UI 的 80 列
+      // 分隔线还宽，不折就会被 maxLines:1 裁成省略号。
+      // 去重仍按后端行 key 判定（一条后端行折成多行也只登记一次 key），
+      // 上面按 line.text 的可见性去重保持原样，避免改动去重语义。
+      // 折出的多行都计入 uniqueLines，_historyPrefixCount 因此自动按真实
+      // 行数累加，stale 重建时才能准确移除残留历史区段。
+      uniqueLines.addAll(normalizeLogLines(line.text));
     }
     if (uniqueLines.isEmpty) return;
     logs.insertAll(0, uniqueLines);
