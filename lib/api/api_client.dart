@@ -12,8 +12,6 @@ import 'package:oasx/config/constants.dart';
 import 'package:oasx/controller/settings.dart';
 import './home_model.dart';
 import './script_log_models.dart';
-import './update_info_model.dart';
-import './update_progress_model.dart';
 
 /// common result
 class ApiResult<T> {
@@ -162,38 +160,12 @@ class ApiClient {
     return res.isSuccess ? res.data : ReadmeGithubModel();
   }
 
-  Future<UpdateInfoModel> getUpdateInfo() async {
-    final res = await request(() => get(
-          '/home/update_info',
-          decodeType: UpdateInfoModel(),
-        ));
-    return res.isSuccess ? res.data : UpdateInfoModel();
-  }
-
-  Future<String?> getExecuteUpdate() async {
-    // 后台线程执行更新，进度由 getUpdateProgress() 轮询获取
-    final res = await request(() => get('/home/execute_update'));
-    return res.data;
-  }
-
-  Future<UpdateProgressModel?> getUpdateProgress() async {
-    final res = await request(() => get(
-          '/home/update_progress',
-          decodeType: UpdateProgressModel(),
-        ));
-    return res.isSuccess ? res.data : null;
-  }
-
-  Future<Map<String, dynamic>?> setUpdateConfig({String? branch, String? repository}) async {
-    final res = await request(() => post(
-          '/home/update_config',
-          queryParameters: {
-            if (branch != null) 'branch': branch,
-            if (repository != null) 'repository': repository,
-          },
-        ));
-    return res.isSuccess ? res.data : null;
-  }
+  // 更新器相关的四个 HTTP 端点（/home/update_info、/home/execute_update、
+  // /home/update_progress、/home/update_config）已移除：更新器改为由
+  // UpdaterLauncher 直接 spawn `python -m deploy.update`。
+  // 原因是 server 进程自己 preload 了 onnxruntime、锁着
+  // onnxruntime_providers_shared.dll，走 HTTP 让它换 ORT 包必然 WinError 5。
+  // 详见 lib/service/updater_launcher.dart 的说明。
 
   Future<bool> putChineseTranslate() async {
     final res = await request(() => put(
