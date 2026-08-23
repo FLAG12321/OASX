@@ -26,41 +26,34 @@ void main() {
     return idx;
   }
 
-  test('taskkill 必须早于 deploy.installer', () {
-    final killPythonw = indexOfCommand('taskkill /f /t /im pythonw.exe');
-    final killPython = indexOfCommand('taskkill /f /t /im python.exe');
-    final installer = indexOfCommand('python -m deploy.installer');
+  test('按当前 OAS 根目录筛选进程，并早于 deploy.installer', () {
+    final scopedKill = indexOfCommand('scopedProcessKillCommand(rootPath)');
+    final installer =
+        indexOfCommand("await _runShell('python -m deploy.installer')");
 
-    expect(killPythonw, lessThan(installer),
-        reason: '必须先杀 pythonw 再换包，否则 ORT DLL 仍被锁');
-    expect(killPython, lessThan(installer),
-        reason: '必须先杀 python 再换包：OCR RPC 服务是 python.exe');
+    expect(scopedKill, lessThan(installer),
+        reason: '必须先停止当前 OAS 进程再换包，否则 ORT DLL 仍可能被锁');
+    expect(source.contains('Get-CimInstance Win32_Process'), isTrue,
+        reason: '必须按进程路径筛选，不能无差别 taskkill 全局 Python');
+    expect(source.contains('taskkill /f /t /pid'), isTrue,
+        reason: '必须按 PID 终止当前 OAS 进程');
   });
 
-  test('taskkill 必须覆盖 python.exe 而不只是 pythonw.exe', () {
-    // OCR RPC 服务由 _spawn_server_process 用 sys.executable 启动，
-    // 进程名是 python.exe；只杀 pythonw 会漏掉真正持有 ORT DLL 的进程
-    expect(source.contains('taskkill /f /t /im python.exe'), isTrue,
-        reason: 'OCR 服务是 python.exe，必须一并终止');
-  });
-
-  test('taskkill 与 installer 必须 await，否则并发执行顺序无效', () {
-    expect(source.contains("await _runShell('taskkill /f /t /im pythonw.exe')"),
-        isTrue,
-        reason: 'fire-and-forget 会让顺序失效');
-    expect(source.contains("await _runShell('taskkill /f /t /im python.exe')"),
-        isTrue);
+  test('关键命令必须 await，失败时不得继续启动', () {
     expect(source.contains("await _runShell('python -m deploy.installer')"),
-        isTrue);
+        isTrue,
+        reason: '依赖对齐必须完成后才能启动 server');
+    expect(source.contains('if (!await _runShell('), isTrue,
+        reason: '关键步骤失败必须中止后续流程');
   });
 
   test('启动 server 那一行不得 await，否则开机自启永久卡死', () {
     // server.py 是常驻进程，await 等于永不返回；
-    // AutoBootService await launch() 之后才轮询就绪，会直接死锁
-    expect(source.contains('await _runShell(".\\\\toolkit\\\\pythonw.exe'),
-        isFalse,
-        reason: 'server.py 常驻，await 它会让 AutoBootService 永久挂起');
-    expect(source.contains('_runShell(".\\\\toolkit\\\\pythonw.exe'), isTrue,
-        reason: '仍需拉起 server');
+    // AutoBootService await launch() 之后才轮询就绪，会直接死锁。
+    final serverCommand = source.lastIndexOf('server.py');
+    expect(serverCommand, greaterThanOrEqualTo(0), reason: '仍需拉起 server');
+    final launchTail = source.substring(serverCommand - 80, serverCommand + 20);
+    expect(launchTail.contains('unawaited(_runShell('), isTrue,
+        reason: 'server.py 必须 fire-and-forget，不能 await 常驻进程');
   });
 }

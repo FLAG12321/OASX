@@ -85,8 +85,7 @@ void main() {
         environment: {'PATH': path},
         includeParentEnvironment: false,
         workingDirectory: root);
-    expect(r.exitCode, 0,
-        reason: 'pwd 应能被找到并成功执行，实际 stderr=${r.stderr}');
+    expect(r.exitCode, 0, reason: 'pwd 应能被找到并成功执行，实际 stderr=${r.stderr}');
   });
 
   test('子进程输出必须逐块判别编码，否则中文乱码或直接中断启动链', () {
@@ -119,7 +118,7 @@ void main() {
     // launch() 里每一步都 await _runShell，任何异常逃逸都会让后续步骤
     // （含最后启动 server）整个不执行。FormatException 就是这么漏掉的。
     final source = File('lib/service/server_launcher.dart').readAsStringSync();
-    final start = source.indexOf('Future<void> _runShell(');
+    final start = source.indexOf('Future<bool> _runShell(');
     expect(start, greaterThanOrEqualTo(0));
     final body = source.substring(start, start + 900);
     expect(body.contains('} catch (e) {'), isTrue,
@@ -136,8 +135,7 @@ void main() {
       stderrEncoding: const Utf8Codec(allowMalformed: true),
     );
     // 128 = 没有匹配进程，属预期；关键是走到这里没抛异常
-    expect(r.exitCode, isNot(0),
-        reason: '不存在的进程名应返回非 0（通常 128）');
+    expect(r.exitCode, isNot(0), reason: '不存在的进程名应返回非 0（通常 128）');
   });
 
   // 中文注释：界面日志流的接线断言（必须给 ShellLinesController 传 MixedEncoding）
@@ -164,8 +162,7 @@ void main() {
 
     expect(lines.first, contains('════ START ════ 任务开始'),
         reason: 'utf-8 分隔线与中文应原样还原，实际: ${lines.first}');
-    expect(lines.first, isNot(contains('鈺')),
-        reason: '出现 鈺 说明按 GBK 解码了');
+    expect(lines.first, isNot(contains('鈺')), reason: '出现 鈺 说明按 GBK 解码了');
     // 中文 Windows 上这几个字节是 GBK 的「成功: 」；非 GBK 环境下退回宽容 utf-8，
     // 只要求不抛异常、流不中断，所以中文断言按环境放行
     final isGbkHost = systemEncoding.decode([0xB3, 0xC9]) == '成';
