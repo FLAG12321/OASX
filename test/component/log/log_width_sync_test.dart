@@ -91,6 +91,74 @@ void main() {
       expect(widget.contains(r'^(.{8}\|\d{2}:\d{2}:\d{2}\.\d)\d{2}\|'), isTrue,
           reason: '_trimMillis 必须只匹配行首的 3 位毫秒，不能改写正文时间戳');
     });
+
+    // 历史日志（打开 Logs 时拉取）读的是磁盘文件，写盘用的是 file_formatter：
+    //   '2026-08-23 07:03:33.836 |            logger.py:0453 |     INFO | 正文'
+    // 与实时 WebSocket 的 flutter_formatter 完全不同（带完整日期、源码位置列、
+    // 级别右对齐且在第三段）。前端 _trimMillis 的正则硬锚定行首 8 列级别，
+    // 对文件格式一个字符都匹配不上 —— 历史日志会原样落进列表、与实时日志错列。
+    //
+    // 修复在后端 module/server/log_service.py 的 _format_client_log_text：
+    // 读取时转成 flutter 形状（磁盘文件保留源码位置，只从展示文本里去掉）。
+    // 这条测试守的是「那个转换还在」，否则历史日志会静默退回文件格式。
+    test('后端历史日志读取时必须转成 flutter 形状', () {
+      final logService = File(
+          '../../OnmyojiAutoScript-easy-install/module/server/log_service.py');
+      if (!logService.existsSync()) {
+        markTestSkipped('未找到 OAS 的 log_service.py，跳过跨仓库校验');
+        return;
+      }
+      final source = logService.readAsStringSync();
+      // 转换函数必须存在且被 _build_line_item 用上；只定义不调用等于没修
+      expect(source.contains('_format_client_log_text'), isTrue,
+          reason: '历史日志必须经 _format_client_log_text 转换成前端格式');
+      expect(
+          source.contains('"text": self._format_client_log_text(text)'), isTrue,
+          reason: '_build_line_item 的 text 字段必须走转换，否则前端拿到的是文件格式');
+      // 级别左对齐 8 列 —— 与前端 _trimMillis 的 `^(.{8}\|` 同构。
+      // 若改成 rjust 或「级别 + 空格」，CRITICAL 会占 9 列而整片错列
+      expect(source.contains('ljust(8)'), isTrue,
+          reason: '级别必须左对齐补到 8 列（CRITICAL 恰好 8 列、后面不加空格）');
+      // 毫秒保留 3 位交给前端截 1 位；后端若自己截成 1 位，
+      // _trimMillis 匹配不上、复制日志也会丢精度
+      expect(source.contains(r'\d{2}:\d{2}:\d{2}\.\d{3}'), isTrue,
+          reason: '转换后必须保留 3 位毫秒，截断只在前端渲染层做');
+    });
+
+    test('后端转换后的历史日志能走通前端归一与截毫秒', () {
+      // 后端 _format_client_log_text 的实际输出形状（3 位毫秒）
+      // 与实时日志同构 —— 这正是修复的目的：两条通道走完全相同的渲染路径
+      const cases = {
+        'WARNING |07:03:34.365| 连接超时': 'WARNING |07:03:34.3| 连接超时',
+        'INFO    |07:03:33.836| 任务开始': 'INFO    |07:03:33.8| 任务开始',
+        'CRITICAL|07:03:35.001| 崩溃': 'CRITICAL|07:03:35.0| 崩溃',
+      };
+
+      cases.forEach((fromBackend, expectedAfterTrim) {
+        // 1) 归一不破坏行首，也不吞掉正文
+        final normalized = normalizeLogLines('$fromBackend\n');
+        expect(normalized.single, '$fromBackend\n',
+            reason: '短行应原样保留（含行首与正文间的单空格），实际: ${normalized.single}');
+
+        // 2) 前端 _trimMillis 的正则命中，把 3 位毫秒截成 1 位。
+        //    这里复刻 log_widget.dart 的正则；上一条测试已锁住两边字面量一致
+        final trimmed = fromBackend.replaceFirstMapped(
+          RegExp(r'^(.{8}\|\d{2}:\d{2}:\d{2}\.\d)\d{2}\|'),
+          (m) => '${m[1]}|',
+        );
+        expect(trimmed, expectedAfterTrim,
+            reason: '正则须命中并只截毫秒，正文不得改动');
+
+        // 行首列宽：后端出 3 位毫秒时 23 列，前端截成 1 位后 21 列。
+        // 级别段恒为 8 列是对齐的根本 —— CRITICAL 恰好 8 列、后面不加空格
+        expect(fromBackend.indexOf('|'), 8, reason: '级别段恒为 8 列');
+        expect(trimmed.indexOf('|'), 8, reason: '截断不得改变级别段列宽');
+        expect(fromBackend.substring(0, 23).endsWith('| '), isTrue,
+            reason: '后端形态行首应为 23 列，实际: ${fromBackend.substring(0, 23)}');
+        expect(trimmed.substring(0, 21).endsWith('| '), isTrue,
+            reason: '截断后行首应为 21 列，实际: ${trimmed.substring(0, 21)}');
+      });
+    });
   });
 
   group('字号与宽度匹配', () {
