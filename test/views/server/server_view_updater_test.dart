@@ -21,7 +21,8 @@ void main() {
 
   setUpAll(() {
     source = File('lib/views/server/server_view.dart').readAsStringSync();
-    panelSource = File('lib/views/server/updater_panel.dart').readAsStringSync();
+    panelSource =
+        File('lib/views/server/updater_panel.dart').readAsStringSync();
   });
 
   group('FAB 结构', () {
@@ -44,7 +45,7 @@ void main() {
 
     test('更新 FAB 在更新中必须禁用', () {
       // 并发跑 git 会互相踩 .git/*.lock
-      expect(source.contains('onPressed: running'), isTrue,
+      expect(source.contains('onPressed: (running || busy)'), isTrue,
           reason: '更新中必须 onPressed: null，否则可并发触发 git');
     });
 
@@ -67,8 +68,7 @@ void main() {
       final updateIdx = rowBody.indexOf('updateButton()');
       final startIdx = rowBody.indexOf('startServerButton()');
       expect(updateIdx, greaterThanOrEqualTo(0));
-      expect(startIdx, greaterThan(updateIdx),
-          reason: '手动更新应出现在启动服务左边');
+      expect(startIdx, greaterThan(updateIdx), reason: '手动更新应出现在启动服务左边');
     });
   });
 
@@ -131,7 +131,12 @@ void main() {
       expect(source.contains('void _collapseOthers('), isTrue,
           reason: '不用 group 就必须自己实现互斥收起');
       // 每个面板都要在展开时收起其余项，否则手风琴只对部分面板生效
-      for (final key in ['_pathKey', '_deployKey', '_autoStartKey', '_updaterKey']) {
+      for (final key in [
+        '_pathKey',
+        '_deployKey',
+        '_autoStartKey',
+        '_updaterKey'
+      ]) {
         expect(source.contains('_collapseOthers($key)'), isTrue,
             reason: '$key 展开时必须收起其余面板');
       }
@@ -174,10 +179,8 @@ void main() {
       final logIdx = source.indexOf('LogWidget(');
       final updaterIdx = source.indexOf('updater(context),');
       expect(pathIdx, greaterThanOrEqualTo(0));
-      expect(updaterIdx, greaterThan(pathIdx),
-          reason: '更新器应排在其它配置面板之后');
-      expect(updaterIdx, lessThan(logIdx),
-          reason: '更新器应与其它配置面板同级，位于服务启动日志之前');
+      expect(updaterIdx, greaterThan(pathIdx), reason: '更新器应排在其它配置面板之后');
+      expect(updaterIdx, lessThan(logIdx), reason: '更新器应与其它配置面板同级，位于服务启动日志之前');
     });
 
     test('更新器面板标题与同组其它面板同款', () {
@@ -192,10 +195,10 @@ void main() {
 
     test('四个面板标题都走 panelTitleStyle，且比 titleMedium 大一号', () {
       // 五个框（四面板 + 日志）标题必须同款，散着写必然漂移
-      final count =
-          RegExp(r'style: panelTitleStyle\(context\)').allMatches(source).length;
-      expect(count, 4,
-          reason: '识别目录/服务启动配置/自启动/更新器四个面板标题都要用 panelTitleStyle');
+      final count = RegExp(r'style: panelTitleStyle\(context\)')
+          .allMatches(source)
+          .length;
+      expect(count, 4, reason: '识别目录/服务启动配置/自启动/更新器四个面板标题都要用 panelTitleStyle');
       // 大一号 = 只改字号保留 w500；titleLarge 是 22/w400，字重反而变轻
       expect(source.contains('titleMedium?.copyWith(fontSize: 17)'), isTrue,
           reason: '标题应比 titleMedium 默认 16 大一号且保持 w500');
@@ -236,8 +239,8 @@ void main() {
       expect(panelSource.contains('Text(label, style: labelStyle)'), isTrue,
           reason: '标签用独立 Text 承载，样式来自 sectionTitle');
       expect(
-          panelSource
-              .contains('final labelStyle = UpdaterPanel.sectionTitle(context)'),
+          panelSource.contains(
+              'final labelStyle = UpdaterPanel.sectionTitle(context)'),
           isTrue,
           reason: '标签必须与「当前版本」同用 sectionTitle 才能真的同字号');
     });
@@ -256,7 +259,8 @@ void main() {
       // 用户单独要求更新器内部再大一号：这里比 ServerView.panelContentBump(=1) 大
       expect(panelSource.contains('static const double _sizeBump = 2'), isTrue,
           reason: '更新器内部放大量应为 2，比其余面板的 1 再大一号');
-      expect(source.contains('static const double panelContentBump = 1'), isTrue,
+      expect(
+          source.contains('static const double panelContentBump = 1'), isTrue,
           reason: '其余面板保持 1，用户此前明确要求把框缩回来');
     });
 
@@ -274,8 +278,7 @@ void main() {
       final switchCount = RegExp(r'style: sectionTitleStyle')
           .allMatches(autoStartSource)
           .length;
-      expect(switchCount, 2,
-          reason: '开关标题与区块标题各用一次，共两处');
+      expect(switchCount, 2, reason: '开关标题与区块标题各用一次，共两处');
       // SwitchListTile 的 title 默认走 bodyLarge，不显式给样式就会比区块标题小
       expect(
           autoStartSource.contains(

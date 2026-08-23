@@ -69,6 +69,7 @@ void main() {
       File('${root.path}/toolkit/python.exe').createSync(recursive: true);
       File('${root.path}/toolkit/Git/cmd/git.exe').createSync(recursive: true);
       File('${root.path}/deploy/installer.py').createSync(recursive: true);
+      File('${root.path}/deploy/update.py').createSync(recursive: true);
       File('${root.path}/config/deploy.yaml').createSync(recursive: true);
       expect(UpdaterLauncher.resolveRootPath(root.path), root.path);
 
@@ -76,6 +77,19 @@ void main() {
       expect(UpdaterLauncher.resolveRootPath(''), isNull);
       expect(UpdaterLauncher.resolveRootPath('   '), isNull);
     });
+  });
+
+  test('kill 不会提前清空进程引用，并会尝试结束 Windows 子进程树', () {
+    // 中文注释：start() 必须自己统一收尾，避免 kill 后 exitCode 空解包和 onDone 丢失。
+    final source = File('lib/service/updater_launcher.dart').readAsStringSync();
+    final killStart = source.indexOf('void kill()');
+    final killEnd = source.indexOf('Future<void> _killProcessTree', killStart);
+    expect(killStart, greaterThanOrEqualTo(0));
+    expect(killEnd, greaterThan(killStart));
+    final killBody = source.substring(killStart, killEnd);
+    expect(killBody.contains('_process = null'), isFalse);
+    expect(source.contains("'taskkill'"), isTrue);
+    expect(source.contains('finally'), isTrue);
   });
 
   group('--info 输出契约', () {

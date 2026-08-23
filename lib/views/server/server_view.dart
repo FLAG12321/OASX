@@ -215,8 +215,7 @@ class _ServerViewState extends State<ServerView> {
       onExpansionChanged: (expanded) {
         if (expanded) _collapseOthers(_deployKey);
       },
-      title: Text(I18n.setup_deploy.tr,
-          style: panelTitleStyle(context)),
+      title: Text(I18n.setup_deploy.tr, style: panelTitleStyle(context)),
       children: [
         SingleChildScrollView(
           child: code(maxHeight - 50),
@@ -237,8 +236,7 @@ class _ServerViewState extends State<ServerView> {
       // 默认 children 居中会让内容水平居中，显式左对齐
       expandedCrossAxisAlignment: CrossAxisAlignment.start,
       childrenPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      title: Text(I18n.updater.tr,
-          style: panelTitleStyle(context)),
+      title: Text(I18n.updater.tr, style: panelTitleStyle(context)),
       children: const [
         UpdaterPanel(),
       ],
@@ -257,8 +255,8 @@ class _ServerViewState extends State<ServerView> {
       // 默认 children 居中会让裸 Text 水平居中，显式左对齐
       expandedCrossAxisAlignment: CrossAxisAlignment.start,
       childrenPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      title: Text(I18n.oasxAutoStartSettings.tr,
-          style: panelTitleStyle(context)),
+      title:
+          Text(I18n.oasxAutoStartSettings.tr, style: panelTitleStyle(context)),
       children: const [
         AutoStartSettingsContent(),
       ],
@@ -297,11 +295,12 @@ class _ServerViewState extends State<ServerView> {
         init: UpdaterController.ensure(),
         builder: (updaterController) {
           final running = updaterController.isRunning;
+          final busy = updaterController.isBusy;
           return FloatingActionButton(
             heroTag: 'UPDATE',
             tooltip: I18n.execute_update.tr,
             // 更新中禁用（onPressed: null）：并发跑 git 会互相踩 .git/*.lock
-            onPressed: running
+            onPressed: (running || busy)
                 ? null
                 : () {
                     _expandOnly(_updaterKey);
@@ -328,20 +327,27 @@ class _ServerViewState extends State<ServerView> {
   /// 同时收起全部配置面板：日志高度是 maxHeight-200，配置面板展开着会把它挤到
   /// 视口外，用户看不见自己刚启动的输出。
   Widget startServerButton() {
-    return FloatingActionButton(
+    return GetX<UpdaterController>(
+      init: UpdaterController.ensure(),
+      builder: (updaterController) => FloatingActionButton(
         heroTag: 'START_SERVER',
         tooltip: I18n.setup_log.tr,
+        // 更新/info/保存操作期间禁止启动 Server，避免相互杀进程或修改 Git。
+        onPressed: updaterController.isBusy
+            ? null
+            : () {
+                final controller = Get.find<ServerController>();
+                // 收起所有配置面板，给日志腾出视口
+                for (final key in _panelKeys) {
+                  key.currentState?.collapse();
+                }
+                // 日志可能被用户手动收起过，启动前确保它是展开的
+                controller.collapseLog.value = false;
+                controller.run();
+              },
         child: const Icon(Icons.auto_mode_rounded),
-        onPressed: () {
-          final controller = Get.find<ServerController>();
-          // 收起所有配置面板，给日志腾出视口
-          for (final key in _panelKeys) {
-            key.currentState?.collapse();
-          }
-          // 日志可能被用户手动收起过，启动前确保它是展开的
-          controller.collapseLog.value = false;
-          controller.run();
-        });
+      ),
+    );
   }
 
   Widget code(double maxHeight) {

@@ -8,46 +8,35 @@ import 'package:oasx/service/server_launcher.dart';
 /// 本地更新器：直接 spawn OAS 安装目录下的 `python -m deploy.update`，
 /// 不经过 server 的 HTTP 接口。
 ///
-/// 为什么必须绕开 server：
-/// Windows 锁定已加载的 onnxruntime_providers_shared.dll，而 server.py / gui.py /
-/// script.py 入口都会 preload onnxruntime，Python 又无法卸载已加载的扩展 DLL。
-/// 因此 server 进程内发起的 OCR 换包必然 WinError 5 拒绝访问——server 自己就是
-/// 锁的持有者。`deploy/update.py` 是不加载 onnxruntime 的干净进程，
-/// 由 OASX 在 server 未启动时 spawn，才能真正换掉 ORT 包。
-///
-/// 三种调用与 deploy/update.py 的三种模式一一对应：
-/// [fetchInfo] → --info，[saveConfig] → --set-config，[start] → 无参数执行更新。
+/// Windows 锁定已加载的 onnxruntime DLL，因此更新必须由不加载 OCR 的干净进程执行。
+/// 进度从 stdout/stderr 流式回传，结束后用固定前缀解析机器可读结果。
 class UpdaterLauncher {
-  /// OAS 安装根目录（与 ServerLauncher 用的是同一个 rootPathServer）
+  /// OAS 安装根目录（与 ServerLauncher 使用同一个 rootPathServer）。
   final String rootPath;
 
   UpdaterLauncher({required this.rootPath});
 
-  /// 与 deploy/update.py 约定的机器可读结果行前缀
+  /// 与 deploy/update.py 约定的机器可读结果行前缀。
   static const String jsonPrefix = 'OAS_JSON:';
 
-  /// 从 GetStorage 里取 OAS 安装根目录并校验，取不到或不合法返回 null。
-  ///
-  /// 与 ServerLauncher 共用同一个 rootPathServer 键与同一套目录校验，
-  /// 保证「能启动 server 的目录」和「能跑更新器的目录」判定一致。
+  /// 从 GetStorage 中解析并校验 OAS 安装根目录。
   static String? resolveRootPath(String? stored) {
     final root = (stored ?? '').trim();
     if (root.isEmpty) return null;
-    return ServerLauncher.validatePath(root) ? root : null;
+    // Server 可以启动旧版安装，但本地更新器必须确认新入口存在。
+    if (!ServerLauncher.validatePath(root)) return null;
+    return File('$root\\deploy\\update.py').existsSync() ? root : null;
   }
 
-  /// 内置解释器。用 python.exe 而不是 pythonw.exe：需要 stdout 管道拿进度。
+  /// 内置解释器。使用 python.exe 而不是 pythonw.exe，以便读取实时输出。
   String get _python => '$rootPath\\toolkit\\python.exe';
 
   Process? _process;
 
-  /// 更新是否正在进行，用于前端禁用按钮、避免并发跑 git
+  /// 当前是否存在尚未收尾的更新进程。
   bool get isRunning => _process != null;
 
-  /// 从混合输出里挑出 JSON 结果行并解析。
-  ///
-  /// stdout 里混着 git / pip 的原始输出，靠 [jsonPrefix] 定位；
-  /// 取最后一条匹配行（执行更新时结尾那条才是最终结果）。
+  /// 从混合输出中挑出最后一条 JSON 结果行。
   static Map<String, dynamic>? parseJsonLine(Iterable<String> lines) {
     Map<String, dynamic>? found;
     for (final line in lines) {
@@ -57,23 +46,18 @@ class UpdaterLauncher {
         final decoded = jsonDecode(line.substring(idx + jsonPrefix.length));
         if (decoded is Map<String, dynamic>) found = decoded;
       } catch (_) {
-        // 单行解析失败不影响其它行，继续往后找
+        // 单行损坏不影响后续结果行解析。
       }
     }
     return found;
   }
 
-  /// 读取仓库信息（分支 / 仓库地址 / commit 对比），server 未启动也可用。
-  ///
-  /// 返回的 Map 字段与 /home/update_info 一致，可直接喂给 UpdateInfoModel.fromJson。
+  /// 读取仓库信息，server 未启动时也可执行。
   Future<Map<String, dynamic>?> fetchInfo() async {
-    final result = await _runCaptured(['-m', 'deploy.update', '--info']);
-    return result;
+    return _runCaptured(['-m', 'deploy.update', '--info']);
   }
 
   /// 写入 deploy.yaml 的 Repository / Branch。
-  ///
-  /// 走 stdin 传 JSON，避免仓库地址里的特殊字符被 shell 解释。
   Future<Map<String, dynamic>?> saveConfig({
     String? repository,
     String? branch,
@@ -87,7 +71,7 @@ class UpdaterLauncher {
     );
   }
 
-  /// 一次性执行并收集全部输出，用于 --info / --set-config 这类短命令。
+  /// 执行短命令并收集全部输出，用于 --info / --set-config。
   Future<Map<String, dynamic>?> _runCaptured(
     List<String> args, {
     String? stdinPayload,
@@ -97,15 +81,15 @@ class UpdaterLauncher {
         _python,
         args,
         workingDirectory: rootPath,
-        // 子进程内部按 utf-8 输出中文，显式指定避免 Windows 默认代码页乱码
-        environment: {'PYTHONIOENCODING': 'utf-8'},
+        // 保留父进程环境，只覆盖 Python 输出编码，避免子进程找不到系统工具。
+        environment: {
+          ...Platform.environment,
+          'PYTHONIOENCODING': 'utf-8',
+        },
       );
-      if (stdinPayload != null) {
-        process.stdin.write(stdinPayload);
-      }
+      if (stdinPayload != null) process.stdin.write(stdinPayload);
       await process.stdin.close();
       final lines = <String>[];
-      // stdout / stderr 都要收：deploy.logger 走 stdout，Python 异常走 stderr
       final done = [
         process.stdout
             .transform(utf8.decoder)
@@ -124,58 +108,87 @@ class UpdaterLauncher {
     }
   }
 
-  /// 执行完整更新。逐行回调进度，结束时回调最终结果。
-  ///
-  /// [onLog] 收到每一行输出（含 git / pip 原始输出与阶段标记 `> 阶段名`）。
-  /// [onDone] 收到 deploy/update.py 结尾那条 JSON 结果；进程异常退出时为 null。
+  /// 执行完整更新并逐行回调进度。
   Future<void> start({
     required void Function(String line) onLog,
     required void Function(Map<String, dynamic>? result, int exitCode) onDone,
   }) async {
     if (isRunning) return;
+
     final lines = <String>[];
+    Process? process;
+    var doneCalled = false;
+
+    void finish(Map<String, dynamic>? result, int exitCode) {
+      if (doneCalled) return;
+      doneCalled = true;
+      onDone(result, exitCode);
+    }
+
     try {
-      _process = await Process.start(
+      process = await Process.start(
         _python,
         ['-m', 'deploy.update'],
         workingDirectory: rootPath,
-        environment: {'PYTHONIOENCODING': 'utf-8'},
+        environment: {
+          ...Platform.environment,
+          'PYTHONIOENCODING': 'utf-8',
+        },
       );
+      _process = process;
+
+      void handle(String line) {
+        lines.add(line);
+        // JSON 结果行仅供程序解析，不重复刷到日志区。
+        if (!line.contains(jsonPrefix)) onLog(line);
+      }
+
+      final streams = [
+        process.stdout
+            .transform(utf8.decoder)
+            .transform(const LineSplitter())
+            .forEach(handle),
+        process.stderr
+            .transform(utf8.decoder)
+            .transform(const LineSplitter())
+            .forEach(handle),
+      ];
+      await Future.wait(streams);
+      final code = await process.exitCode;
+      finish(parseJsonLine(lines), code);
     } catch (e) {
-      _process = null;
-      onLog('ERROR: 无法启动更新器：$e');
-      onDone(null, -1);
-      return;
+      onLog('ERROR: 更新器运行失败：$e');
+      finish(null, -1);
+    } finally {
+      // 只清理本次 start 创建的进程，避免旧任务的 finally 覆盖新任务状态。
+      if (identical(_process, process)) _process = null;
     }
-
-    void handle(String line) {
-      lines.add(line);
-      // JSON 结果行是给程序看的，不往日志区刷
-      if (!line.contains(jsonPrefix)) onLog(line);
-    }
-
-    final streams = [
-      _process!.stdout
-          .transform(utf8.decoder)
-          .transform(const LineSplitter())
-          .forEach(handle),
-      _process!.stderr
-          .transform(utf8.decoder)
-          .transform(const LineSplitter())
-          .forEach(handle),
-    ];
-    await Future.wait(streams);
-    final code = await _process!.exitCode;
-    _process = null;
-    onDone(parseJsonLine(lines), code);
   }
 
-  /// 终止在途更新进程。
+  /// 终止更新器及其派生的 git/pip/cmd 进程。
   ///
-  /// execute_pull 全程幂等，中断后重新点更新会接上剩余阶段，
-  /// 所以强杀是安全的（残留的 .git/*.lock 由下次的清理阶段处理）。
+  /// 不立即清空 [_process]：让 start() 的 finally 统一收尾，避免 exitCode 空引用
+  /// 和 onDone 丢失。
   void kill() {
-    _process?.kill();
-    _process = null;
+    final process = _process;
+    if (process == null) return;
+    if (Platform.isWindows) {
+      unawaited(_killProcessTree(process));
+    } else {
+      process.kill();
+    }
+  }
+
+  Future<void> _killProcessTree(Process process) async {
+    try {
+      final result = await Process.run(
+        'taskkill',
+        ['/f', '/t', '/pid', '${process.pid}'],
+      );
+      if (result.exitCode != 0) process.kill();
+    } catch (_) {
+      // taskkill 不可用时至少终止直接子进程，避免更新器永久悬挂。
+      process.kill();
+    }
   }
 }

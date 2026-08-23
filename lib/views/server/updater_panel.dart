@@ -34,8 +34,8 @@ class UpdaterPanel extends StatelessWidget {
   static const double _sizeBump = 2;
 
   /// 在主题字号基础上抬升 _sizeBump
-  static TextStyle? _bump(TextStyle? base) => base?.copyWith(
-      fontSize: (base.fontSize ?? 14) + _sizeBump);
+  static TextStyle? _bump(TextStyle? base) =>
+      base?.copyWith(fontSize: (base.fontSize ?? 14) + _sizeBump);
 
   /// L2：面板内区块标题
   static TextStyle? sectionTitle(BuildContext context) =>
@@ -57,8 +57,8 @@ class UpdaterPanel extends StatelessWidget {
     // 逐处补 style 必然漏改，这里用一层 DefaultTextStyle 覆盖整棵子树
     final inherited = DefaultTextStyle.of(context).style;
     return DefaultTextStyle(
-      style: inherited.copyWith(
-          fontSize: (inherited.fontSize ?? 14) + _sizeBump),
+      style:
+          inherited.copyWith(fontSize: (inherited.fontSize ?? 14) + _sizeBump),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -151,24 +151,29 @@ class _UpdateConfigFormState extends State<_UpdateConfigForm> {
     // 标签与「当前版本」同款（都走 sectionTitle）；输入内容用正文字号，靠粗细区分
     final labelStyle = UpdaterPanel.sectionTitle(context);
     final inputStyle = UpdaterPanel.bodyText(context);
-    return Row(
-      // 标签在输入框上方，三者按底边对齐，保存按钮才与输入框齐平
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Expanded(
-          child: _field('Repository', _repoController, labelStyle, inputStyle),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _field('Branch', _branchController, labelStyle, inputStyle),
-        ),
-        const SizedBox(width: 8),
-        TextButton(
-          onPressed: _saving ? null : _save,
-          child: Text(_saving ? '保存中...' : '保存'),
-        ),
-      ],
-    );
+    return Obx(() {
+      final operationBusy = UpdaterController.ensure().isBusy;
+      return Row(
+        // 标签在输入框上方，三者按底边对齐，保存按钮才与输入框齐平
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Expanded(
+            child:
+                _field('Repository', _repoController, labelStyle, inputStyle),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _field('Branch', _branchController, labelStyle, inputStyle),
+          ),
+          const SizedBox(width: 8),
+          TextButton(
+            // 更新、info 或其它 Server 操作进行时禁止写配置。
+            onPressed: (_saving || operationBusy) ? null : _save,
+            child: Text(_saving ? '保存中...' : '保存'),
+          ),
+        ],
+      );
+    });
   }
 
   /// 标签 + 输入框。
@@ -295,8 +300,9 @@ class _UpdateLogPanelState extends State<_UpdateLogPanel> {
               children: [
                 TextButton.icon(
                   // 更新中禁用：并发跑 git 会互相踩 .git/*.lock
-                  onPressed:
-                      controller.isRunning ? null : controller.startUpdate,
+                  onPressed: (controller.isRunning || controller.isBusy)
+                      ? null
+                      : controller.startUpdate,
                   icon: const Icon(Icons.system_update, size: 18),
                   label: Text(I18n.execute_update.tr),
                 ),
@@ -330,8 +336,7 @@ class _UpdateLogPanelState extends State<_UpdateLogPanel> {
                   // 每行日志按内容自动着色；字体跟随全局主题（等宽），
                   // 使阶段前缀与 pip/git 输出的列自然对齐。
                   // 字号刻意不跟随面板内容放大：日志保持小字号，一屏看更多行
-                  style: TextStyle(
-                      color: _logColor(logs[index]), fontSize: 12),
+                  style: TextStyle(color: _logColor(logs[index]), fontSize: 12),
                 ),
               ),
             ),
@@ -397,10 +402,7 @@ class _RemoteSection extends StatelessWidget {
       isUpdate
           ? const Icon(Icons.cloud_download, size: 18)
           : const Icon(Icons.cloud_off, color: Colors.green, size: 18),
-      Text(
-          isUpdate
-              ? I18n.find_oas_new_version.tr
-              : I18n.oas_latest_version.tr,
+      Text(isUpdate ? I18n.find_oas_new_version.tr : I18n.oas_latest_version.tr,
           style: UpdaterPanel.sectionTitle(context)),
       const SizedBox(width: 20),
       Text('${I18n.current_branch.tr}: ${data.branch}',
