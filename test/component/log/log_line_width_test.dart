@@ -50,10 +50,11 @@ void main() {
       expect(lines, ['line1\n', 'line2\n', 'line3\n']);
     });
 
-    test('行尾换行符不产生空行元素', () {
-      // 'a\n'.split('\n') == ['a', '']，末尾空串是换行符的产物不是真实空行；
-      // 不跳过的话每条日志后面都会多出一个空行
+    test('只丢弃末尾哨兵，保留中间真实空行', () {
+      // 末尾 split 哨兵不是真实行，但两个换行之间的空串代表真实空行。
       expect(normalizeLogLines('a\n').length, 1);
+      expect(normalizeLogLines('a\n\nb\n'), ['a\n', '\n', 'b\n']);
+      expect(normalizeLogLines('\n'), ['\n']);
       expect(normalizeLogLines(''), isEmpty);
     });
 
@@ -99,22 +100,21 @@ void main() {
     });
   });
 
-  group('不留空行（信息密度）', () {
+  group('过滤补位空行（信息密度）', () {
     test('内容满宽后的补位空格不折出纯空白第二行', () {
       // 回归锚点：rich 把每行补到恰好定宽，若原样进折行分支，
       // 「满宽内容 + 补位空格」会折出一行纯空格 —— 屏幕上就是每条日志
       // 后面跟一个空行，信息密度直接砍半。用户报的就是这个。
       final full = 'a' * kLogLineWidthLimit;
       final lines = normalizeLogLines('$full     \n');
-      expect(lines.length, 1,
-          reason: '尾随补位空格不该单独成行，实际折出 ${lines.length} 行');
+      expect(lines.length, 1, reason: '尾随补位空格不该单独成行，实际折出 ${lines.length} 行');
       expect(lines.single.trimRight(), full);
     });
 
-    test('任何输入都不产生纯空白行', () {
+    test('Rich 补位行不产生纯空白元素', () {
       const limit = kLogLineWidthLimit;
       final samples = [
-        '${'a' * limit}          \n', // rich 补位
+        '${'a' * limit}          \n', // Rich 补位
         '${'中' * (limit ~/ 2)}     \n', // 中文满宽 + 补位
         '${'a' * (limit * 2)}        \n', // 超宽且末片全空格
         'x   \n', // 短行带尾随空格
@@ -124,15 +124,16 @@ void main() {
       for (final s in samples) {
         for (final line in normalizeLogLines(s)) {
           expect(line.trimRight(), isNotEmpty,
-              reason: '输入 ${s.replaceAll(' ', '·')} 折出了纯空白行');
+              reason: '输入 ${s.replaceAll(' ', '·')} 折出了补位空行');
         }
       }
     });
 
-    test('整行只有空白时整条丢弃，不占列表名额', () {
-      // 这类行是 rich 的补位产物，不是真实空行
+    test('补位空白行丢弃，但真实空行保留', () {
+      // 非空字符串剥掉补位后为空，才视为 Rich 补位产物。
       expect(normalizeLogLines('   \n'), isEmpty);
       expect(normalizeLogLines('\r\n'), isEmpty);
+      expect(normalizeLogLines('\n'), ['\n']);
     });
   });
 
@@ -153,11 +154,57 @@ void main() {
     });
 
     test('折行产生的续行也不补位', () {
-      final lines =
-          normalizeLogLines('${'a' * (kLogLineWidthLimit + 40)}\n');
+      final lines = normalizeLogLines('${'a' * (kLogLineWidthLimit + 40)}\n');
       expect(lines.length, 2);
       expect(lines[0], '${'a' * kLogLineWidthLimit}\n');
       expect(lines[1], '${'a' * 40}\n', reason: '末片按实际长度，不补到定宽');
+    });
+  });
+
+  group('行首格式契约', () {
+    // 用户明确要求的最终显示格式：`WARNING |07:42:27.3| 内容`
+    //   级别固定 8 列、时间戳保留 1 位毫秒、两个分隔符位置不变。
+    //
+    // 回归锚点：后端 rich 曾按「单词」折行（rich/_wrap.py 的 \s*\S+\s*），
+    // 中文整段没有空格算一个 68 列的单词，行首 23 列后放不下就整体换行，
+    // 第一行只剩 `WARNING |07:42:27.350|`、正文掉到第二行且不带行首 ——
+    // 格式就是这么被破坏的。修复是后端 soft_wrap 整行推出（见 OAS
+    // module/logger.py 的 FlutterHandler），折行全部交给这里。
+    //
+    // 完整字符串级别的格式回归由用户另行补充，这里只锁「归一不破坏行首」。
+    test('归一不得让行首独占一行，正文必须留在第一行', () {
+      // 后端修好后推来的真实形状：整行不折、无补位
+      const payload =
+          'WARNING |08:18:10.103| 这是一条比较长的中文日志内容用来触发后端折行看看行首装饰到底占多少列\n';
+      final lines = normalizeLogLines(payload);
+
+      expect(lines.first.startsWith('WARNING |08:18:10.103| '), isTrue,
+          reason: '第一行必须是完整行首，实际: ${lines.first}');
+      // 行首之后必须还有正文 —— 这正是「行首独占一行」的判据
+      final body = lines.first.substring('WARNING |08:18:10.103| '.length);
+      expect(body.trimRight(), isNotEmpty,
+          reason: '第一行行首之后必须有正文，否则又退回「行首独占一行」');
+      // 折行不丢内容
+      expect(lines.map((l) => l.trimRight()).join(''),
+          payload.trimRight().replaceAll('\n', ''));
+    });
+
+    test('短行原样保留，行首与正文之间的单空格不被吃掉', () {
+      const payload = 'INFO    |08:18:10.101| 任务开始\n';
+      expect(normalizeLogLines(payload).single, payload,
+          reason: '常见短行必须逐字节原样通过');
+    });
+
+    test('CRITICAL 也是 8 列，分隔符列位与其它级别一致', () {
+      // CRITICAL 恰好 8 字符，%(levelname)-8s 不再补空格；
+      // 若前端另行补位就会让它比其它级别多一列，破坏列对齐。
+      const critical = 'CRITICAL|08:18:10.108| 内容\n';
+      const info = 'INFO    |08:18:10.108| 内容\n';
+      expect(normalizeLogLines(critical).single, critical);
+      expect(normalizeLogLines(info).single, info);
+      // 两者第一个 `|` 的列位必须相同
+      expect(critical.indexOf('|'), info.indexOf('|'),
+          reason: '级别字段必须恒为 8 列，分隔符才能成列');
     });
   });
 }

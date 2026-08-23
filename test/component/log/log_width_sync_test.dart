@@ -28,8 +28,8 @@ void main() {
 
     /// 读后端源码里一个顶层整数常量；缺失返回 null 让调用方给出可读的失败原因。
     int? backendInt(String source, String name) {
-      final m = RegExp('^$name\\s*=\\s*(\\d+)', multiLine: true)
-          .firstMatch(source);
+      final m =
+          RegExp('^$name\\s*=\\s*(\\d+)', multiLine: true).firstMatch(source);
       return m == null ? null : int.parse(m.group(1)!);
     }
 
@@ -76,8 +76,8 @@ void main() {
       final source = oasLogger.readAsStringSync();
       // 级别定宽 8 列由 %(levelname)-8s 保证：前端据此不再补空格（见
       // _buildPatterns 的注释），若后端改回 rich 的级别列，前端列宽会失配
-      expect(source.contains(r'%(levelname)-8s|%(asctime)s.%(msecs)03d|'),
-          isTrue,
+      expect(
+          source.contains(r'%(levelname)-8s|%(asctime)s.%(msecs)03d|'), isTrue,
           reason: '行首必须是「级别8列 + | + 时间戳 + |」，竖线两侧不留空格');
       expect(source.contains('show_level=False'), isTrue,
           reason: '级别须由 formatter 输出；开着 rich 的级别列会多占一列并给续行加缩进');
@@ -88,8 +88,8 @@ void main() {
           reason: '后端毫秒保持 3 位（复制日志要原始精度），截断只在前端渲染层做');
       final widget =
           File('lib/component/log/log_widget.dart').readAsStringSync();
-      expect(widget.contains(r'(\d{2}:\d{2}:\d{2}\.\d)\d{2}'), isTrue,
-          reason: '_trimMillis 的正则须匹配后端的 3 位毫秒');
+      expect(widget.contains(r'^(.{8}\|\d{2}:\d{2}:\d{2}\.\d)\d{2}\|'), isTrue,
+          reason: '_trimMillis 必须只匹配行首的 3 位毫秒，不能改写正文时间戳');
     });
   });
 

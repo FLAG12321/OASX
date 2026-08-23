@@ -1,14 +1,11 @@
 /// 日志行宽归一：把后端推来的一段日志切成「每行都不超过分隔线宽度」的多行。
 ///
-/// 为什么需要它：后端 rich 按 `GUI_LOG_WIDTH` 渲染（OAS `module/logger.py`，
-/// `set_func_logger` 的 `Console(width=...)` 与 START/RESTART 分隔线的
-/// `GuiRule` 共用这一个常量），一条超长消息在后端就已被折成若干定宽的行，
-/// 并用 `\n` 拼在**同一个**回调载荷里推给前端。而前端 `logs` 的一个元素就是
-/// 一行（`prototypeItem` + `maxLines: 1`），于是整段多行被塞进一行渲染，
-/// 只看得见第一行、其余被省略号吃掉。
+/// 为什么需要它：后端普通日志为保护 `WARNING |时间| 正文` 的 CJK 行首，
+/// 已改成不经 rich 折行、整行推给前端；`ServerLauncher` 的子进程 stdout
+/// （pip / uvicorn / traceback）同样没有宽度约束。另有少数载荷本身含多个 `\n`。
 ///
-/// 另一类来源不经过 rich：`ServerLauncher` 把子进程 stdout 直接 `INFO: $event`
-/// 推进来（pip / uvicorn / traceback），完全没有宽度约束，同样会超出分隔线。
+/// 前端 `logs` 的一个元素必须恰好是一行（`prototypeItem` + `maxLines: 1`），
+/// 否则超宽或多行载荷会被省略号吃掉。
 ///
 /// 因此这里做两件事：按 `\n` 拆行，再把仍然超宽的行按显示宽度硬折。
 /// 处理后每个元素恰好是可渲染的一行，`maxLines: 1` 与 `prototypeItem`
@@ -18,15 +15,12 @@ library;
 
 /// 分隔线宽度，也是日志行宽的硬上限（单位：显示列）。
 ///
-/// 必须与后端 `GUI_RULE_WIDTH`（OAS `module/logger.py`）严格相等。后端把宽度拆成
-/// 两个常量但取值相同：
-///   `GUI_LOG_WIDTH`  = 80，推给前端的 `Console(width=...)`，消息按它折行
-///   `GUI_RULE_WIDTH` = 80，分隔线总宽，与日志行同宽
+/// 必须与后端 `GUI_RULE_WIDTH`（OAS `module/logger.py`）严格相等：
+///   `GUI_LOG_WIDTH`  = 80，只约束 traceback 定宽框
+///   `GUI_RULE_WIDTH` = 80，START/RESTART 分隔线总宽
 ///
-/// 所以经过 rich 的日志行到前端时已经 ≤80 列，本上限对它们从不生效；
-/// 真正会撞上的是 `ServerLauncher` 直推的子进程 stdout（pip / uvicorn /
-/// traceback），那类完全没有宽度约束，超出分隔线才折。
-/// 前端若设得更窄会把后端折好的行再折一次；更宽则子进程输出溢出分隔线。
+/// 普通后端日志与子进程 stdout 都可能超过 80 列，本上限负责把它们折到分隔线内。
+/// 前端若设得更窄会过早折行；更宽则输出会溢出分隔线。
 /// **改这里必须同步改后端 `GUI_RULE_WIDTH`。**
 ///
 /// 配套正文字号 12（见 LogContent._selectStyle）：Cascadia 每字符宽 0.5859em，
@@ -35,8 +29,8 @@ const int kLogLineWidthLimit = 80;
 
 /// 单个字符占的显示列数：东亚宽/全角字符占 2 列，其余占 1 列。
 ///
-/// 与后端 `rich.cells.cell_len` 的口径对齐——后端正是按这个宽度折行的，
-/// 前端若按 UTF-16 code unit 计数，一行中文会被当成半数列宽而放过，
+/// 与后端 `rich.cells.cell_len` 的显示列口径对齐。前端若按 UTF-16 code unit
+/// 计数，一行中文会被当成半数列宽而放过，
 /// 实际渲染却是满宽，等于没折。
 ///
 /// 只覆盖真正会出现在日志里的宽字符区段（CJK、假名、谚文、全角形式）。
@@ -81,22 +75,31 @@ int logDisplayWidth(String text) {
 /// 返回的每一行都保留结尾 `\n`：`LogMixin.copyLogs` 用 `logs.join("")` 复制，
 /// 靠各行自带换行符还原原文。
 ///
-/// 只有确实超宽的行（子进程 stdout）会被插入新换行符，此时复制结果比原文多
+/// 只有确实超宽的行（普通后端日志或子进程 stdout）会被插入新换行符，复制结果比原文多
 /// 换行——这正是「超过了请另起一行」要的效果。
 List<String> normalizeLogLines(String payload) {
   if (payload.isEmpty) return const [];
   final result = <String>[];
-  // split('\n') 对 'a\nb\n' 得到 ['a','b','']，末尾空串是行尾换行符的产物，
-  // 不是真实空行，必须跳过，否则每条日志后面都会多出一个空行
-  for (final rawLine in payload.split('\n')) {
-    if (rawLine.isEmpty) continue;
-    // 必须先剥尾随空格再判宽度：rich 把每行补到恰好定宽，若带着补位进折行分支，
-    // 「满宽内容 + 补位空格」会折出纯空白的第二行 —— 屏幕上就是每条日志后面
-    // 跟一个空行，信息密度直接砍半（用户报的就是这个）。
+  final rawLines = payload.split('\n');
+  // 末尾换行会让 split 额外产生一个空字符串；它只是分隔符哨兵，
+  // 不代表又有一条真实空行。中间的空字符串必须保留，才能保留真实空行。
+  final lineCount =
+      payload.endsWith('\n') ? rawLines.length - 1 : rawLines.length;
+  for (var i = 0; i < lineCount; i++) {
+    final rawLine = rawLines[i];
+    // 空字符串代表真实空行，不要与 Rich 生成的“全是补位空格”混为一谈。
+    if (rawLine.isEmpty) {
+      result.add('\n');
+      continue;
+    }
+
+    // 必须先剥尾随空格再判宽度：Rich 把每行补到定宽，若带着补位进折行分支，
+    // “满宽内容 + 补位空格”会折出纯空白的第二行。
     final trimmed = _trimTrailingSpaces(rawLine);
-    // 整行只有空白：它是补位产物而非真实空行，直接丢弃
+    // 非空行被剥完只剩空格或 Windows 的 \r，视为 Rich 补位行而丢弃；
+    // 真实空行已经在上面的 rawLine.isEmpty 分支保留。
     if (trimmed.isEmpty) continue;
-    // 绝大多数行（后端已折好的定宽行）在这里直接过，不进入逐字符切分
+    // 绝大多数行（后端已折好的定宽行）在这里直接过，不进入逐字符切分。
     if (logDisplayWidth(trimmed) <= kLogLineWidthLimit) {
       result.add('$trimmed\n');
       continue;

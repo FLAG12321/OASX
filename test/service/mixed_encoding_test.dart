@@ -34,8 +34,7 @@ void main() {
   /// 不能按 name 判断：Dart 的 SystemEncoding.name 恒为 'system'，看不出代码页
   /// （实测中文 Windows 上就是 'system'，但 encode('成功') 得到 b3 c9 b9 a6 = GBK）。
   /// 所以直接探测行为：编出来的字节与 utf-8 不同即为其它代码页。
-  final isGbkHost = !_sameBytes(
-      systemEncoding.encode('成功'), utf8.encode('成功'));
+  final isGbkHost = !_sameBytes(systemEncoding.encode('成功'), utf8.encode('成功'));
 
   group('一次性解码', () {
     const codec = MixedEncoding(systemEncoding);
@@ -100,6 +99,22 @@ void main() {
       expect(all, isNot(contains('鈺')), reason: '不应有 utf-8 被按 GBK 解的痕迹');
     });
 
+    test('UTF-8 字符跨块时等待补齐后再解码', () async {
+      const line = '跨块中文😀';
+      final out = <String>[];
+      final sink = const MixedEncoding(systemEncoding)
+          .decoder
+          .startChunkedConversion(ChunkedConversionSink.withCallback(
+              (chunks) => out.addAll(chunks)));
+
+      // 故意每次只喂一个字节，覆盖三字节中文和四字节 emoji 的跨块场景。
+      for (final byte in utf8.encode(line)) {
+        sink.add([byte]);
+      }
+      sink.close();
+
+      expect(out.join(), line);
+    });
     test('无法解码的字节也不抛异常、不终止流', () async {
       // 流一旦出错就终止，后续所有日志都收不到——这是必须兜住的
       final out = <String>[];
@@ -112,8 +127,7 @@ void main() {
       sink.add(utf8.encode('后续行必须照常到达\n'));
       sink.close();
 
-      expect(out.join(), contains('后续行必须照常到达'),
-          reason: '坏字节不得中断流');
+      expect(out.join(), contains('后续行必须照常到达'), reason: '坏字节不得中断流');
     });
   });
 
@@ -121,15 +135,20 @@ void main() {
     test('ServerLauncher 的日志流与 Shell 都用 MixedEncoding', () {
       // 三处都要用同一套判别，漏一处就有一条路径乱码（踩过：只改了 Shell 的
       // stdoutEncoding，界面日志走 ShellLinesController 依旧乱码）
-      final source = File('lib/service/server_launcher.dart').readAsStringSync();
+      final source =
+          File('lib/service/server_launcher.dart').readAsStringSync();
       expect(
           source.contains(
               'ShellLinesController(encoding: const MixedEncoding(systemEncoding))'),
           isTrue,
           reason: '界面日志走 ShellLinesController，必须传 MixedEncoding');
-      expect(source.contains('stdoutEncoding: const MixedEncoding(systemEncoding)'),
+      expect(
+          source
+              .contains('stdoutEncoding: const MixedEncoding(systemEncoding)'),
           isTrue);
-      expect(source.contains('stderrEncoding: const MixedEncoding(systemEncoding)'),
+      expect(
+          source
+              .contains('stderrEncoding: const MixedEncoding(systemEncoding)'),
           isTrue);
       // 固定编码是踩过的坑，不得退回
       expect(source.contains('Utf8Codec(allowMalformed: true)'), isFalse,

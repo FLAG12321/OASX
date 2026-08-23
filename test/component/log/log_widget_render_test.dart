@@ -16,7 +16,10 @@ class _FakeLogController extends GetxController with LogMixin {}
 /// 既有测试只比对行高，看不见文字内容，所以 `$1` 这类字面量泄漏能一路蒙过去。
 Future<String> _renderedLine(WidgetTester tester, String rawLine) async {
   final controller = _FakeLogController();
-  controller.logs.add(rawLine);
+  // 走真实入库链路：addLog -> normalizeLogLines -> logs，避免 widget 测试
+  // 直接写 logs 而漏掉补位清理、多行拆分等生产行为。
+  controller.addLog(rawLine);
+  controller.onInit();
   await tester.pumpWidget(
     MaterialApp(
       home: Scaffold(
@@ -27,21 +30,24 @@ Future<String> _renderedLine(WidgetTester tester, String rawLine) async {
       ),
     ),
   );
-  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 60));
 
   // 日志行用 selectable 渲染，落地为 SelectableText.rich
   final selectable = tester.widgetList<SelectableText>(
     find.byType(SelectableText),
   );
   expect(selectable, isNotEmpty, reason: '应至少渲染出一行日志');
-  return selectable.first.textSpan!.toPlainText();
+  final rendered = selectable.first.textSpan!.toPlainText();
+  // 测试手动调用了 onInit，必须显式收尾周期 timer，避免下一个 widget
+  // 用例被 Flutter 的 pending timer 门禁误判为失败。
+  controller.onClose();
+  return rendered;
 }
 
 void main() {
   group('日志行渲染文本', () {
     testWidgets('毫秒截断保留一位且不泄漏 \$1 字面量', (tester) async {
-      final text = await _renderedLine(
-          tester, 'INFO    |12:34:56.789| 任务开始\n');
+      final text = await _renderedLine(tester, 'INFO    |12:34:56.789| 任务开始\n');
 
       // 回归锚点：Dart 的 String.replaceAll 第二参是字面量、不解析 $1 反向引用，
       // 误用会把时间戳整段替换成 "$1"。必须用 replaceAllMapped。
@@ -49,6 +55,19 @@ void main() {
           reason: r'时间戳被替换成 $1 字面量，说明用了 replaceAll 而非 replaceAllMapped');
       expect(text, contains('12:34:56.7'), reason: '应保留一位毫秒');
       expect(text, isNot(contains('12:34:56.789')), reason: '后两位毫秒应被截掉');
+    });
+
+    testWidgets('最终显示严格保持用户要求的压缩行首格式', (tester) async {
+      // 后端原始毫秒为三位，前端只压缩行首时间戳的末两位；
+      // 这里锁完整字符串，防止空格、分隔符或级别宽度被悄悄还原。
+      final text = await _renderedLine(tester, 'WARNING |07:42:27.350| 内容\n');
+      expect(text.trimRight(), 'WARNING |07:42:27.3| 内容');
+    });
+
+    testWidgets('正文中的三位毫秒时间戳不得被压缩', (tester) async {
+      final text = await _renderedLine(
+          tester, 'WARNING |07:42:27.350| 服务返回时间 08:10:20.999\n');
+      expect(text.trimRight(), 'WARNING |07:42:27.3| 服务返回时间 08:10:20.999');
     });
 
     testWidgets('各级别渲染宽度一致，前端不再二次补位', (tester) async {
@@ -64,8 +83,7 @@ void main() {
         lengths[level] = text.indexOf('|');
       }
       final distinct = lengths.values.toSet();
-      expect(distinct.length, 1,
-          reason: '级别字段渲染宽度必须一致，实测 $lengths');
+      expect(distinct.length, 1, reason: '级别字段渲染宽度必须一致，实测 $lengths');
       expect(distinct.single, 8,
           reason: '级别字段应恰好 8 列（%(levelname)-8s），实测 $lengths');
     });
@@ -110,8 +128,7 @@ void main() {
                     ),
                     SizedBox(
                       height: 300,
-                      child: LogWidget(
-                          controller: controller, title: '服务启动日志'),
+                      child: LogWidget(controller: controller, title: '服务启动日志'),
                     ),
                   ],
                 ),
@@ -127,10 +144,8 @@ void main() {
       final logLineLeft =
           tester.getRect(find.byType(SelectableText).first).left;
 
-      expect(logTitleLeft, panelLeft,
-          reason: '日志标题应与折叠面板标题左缘对齐');
-      expect(logLineLeft, panelLeft,
-          reason: '日志正文应与折叠面板标题左缘对齐');
+      expect(logTitleLeft, panelLeft, reason: '日志标题应与折叠面板标题左缘对齐');
+      expect(logLineLeft, panelLeft, reason: '日志正文应与折叠面板标题左缘对齐');
     });
 
     testWidgets('日志标题字号比 titleMedium 默认值大一号', (tester) async {
@@ -142,8 +157,7 @@ void main() {
           home: Scaffold(
             body: SizedBox(
               height: 300,
-              child:
-                  LogWidget(controller: controller, title: '服务启动日志'),
+              child: LogWidget(controller: controller, title: '服务启动日志'),
             ),
           ),
         ),

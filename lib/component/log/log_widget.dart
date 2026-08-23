@@ -57,7 +57,8 @@ class _LogWidgetState extends State<LogWidget> {
     });
     widget.controller.scrollLogs = _scrollLogs;
     // 中文注释：注册 prepend 历史日志后的视口补偿回调。
-    widget.controller.preserveViewportAfterPrepend = _preserveViewportAfterPrepend;
+    widget.controller.preserveViewportAfterPrepend =
+        _preserveViewportAfterPrepend;
   }
 
   @override
@@ -291,14 +292,16 @@ class TopLogPanel extends StatelessWidget {
               if (enableClear ?? true) _deleteButton(),
               if (enableCollapse ?? true) _collapseButton(),
             ],
-          // 左内边距 16 对齐折叠面板标题：面板标题走 ListTile 默认
-          // contentPadding(horizontal:16)，实测文字落在 Card 左边缘 +16
-          // （必须拿真实 ExpansionTileCard 量——裸 ListTile 没有 leading 图标，
-          // 几何不同会量出 20，据此设值反而错开 4px）。
-          // 日志标题原来只有 paddingAll(8)，比面板浅 8px。
-          // 右侧保持 8：那侧是图标按钮，IconButton 自带 8px 内边距，
-          // 补到 16 会让按钮离边缘过远。
-          ).padding(left: 16, right: 8, top: 8, bottom: 8).constrained(height: 48),
+            // 左内边距 16 对齐折叠面板标题：面板标题走 ListTile 默认
+            // contentPadding(horizontal:16)，实测文字落在 Card 左边缘 +16
+            // （必须拿真实 ExpansionTileCard 量——裸 ListTile 没有 leading 图标，
+            // 几何不同会量出 20，据此设值反而错开 4px）。
+            // 日志标题原来只有 paddingAll(8)，比面板浅 8px。
+            // 右侧保持 8：那侧是图标按钮，IconButton 自带 8px 内边距，
+            // 补到 16 会让按钮离边缘过远。
+          )
+              .padding(left: 16, right: 8, top: 8, bottom: 8)
+              .constrained(height: 48),
           // 底部
           if (bottomChild != null) ...[
             const Divider(height: 1),
@@ -388,8 +391,9 @@ class LogContent extends StatelessWidget {
             //
             // 长行不靠这里折行，而是在入库侧就切好：LogMixin.addLog 用
             // normalizeLogLines 把载荷按分隔线宽度（80 列）归一成多个元素，
-            // 一个元素恰好一行（见 log_line_width.dart）。经 rich 的行到这里
-            // 已 ≤80 列，只有子进程 stdout 才会被折，maxLines:1 不会吃掉内容，
+            // 一个元素恰好一行（见 log_line_width.dart）。后端普通日志为保护
+            // CJK 行首已改成整行推出，子进程 stdout 同样无宽度约束；两者都在
+            // 入库时折好，所以 maxLines:1 不会吃掉内容，
             // 「一元素一行、等高」的不变式也得以保持——视口补偿与
             // offset↔index 换算都依赖它。
             prototypeItem: ExcludeSemantics(
@@ -453,17 +457,19 @@ class LogContent extends StatelessWidget {
     ).constrained(width: double.infinity, height: double.infinity);
   }
 
-  /// 毫秒三位截成一位：`12:34:56.789` → `12:34:56.7`，每行省 2 字符。
+  /// 只把行首毫秒三位截成一位：`12:34:56.789` → `12:34:56.7`。
   ///
-  /// 只在渲染层截断，不动 controller.logs —— 复制日志（copyLogs）与历史加载
-  /// 仍是后端原始精度，排查时间敏感问题时不丢信息。
+  /// 正则锁定「8 列级别 + |时间戳|」前缀，正文里的 `08:10:20.999` 必须原样保留；
+  /// 只在渲染层截断，不动 controller.logs，所以复制日志与历史加载仍保留原始精度。
   static final RegExp _millisPattern =
-      RegExp(r'(\d{2}:\d{2}:\d{2}\.\d)\d{2}');
+      RegExp(r'^(.{8}\|\d{2}:\d{2}:\d{2}\.\d)\d{2}\|');
 
-  /// 必须用 replaceAllMapped：Dart 的 replaceAll 第二个参数是字面量字符串，
-  /// 不解析 `$1` 反向引用（与 JS 的 String.replace 不同），会把 `$1` 原样写进日志。
-  static String _trimMillis(String line) =>
-      line.replaceAllMapped(_millisPattern, (m) => m[1]!);
+  /// 必须用 replaceFirstMapped：Dart 的 replaceFirst 第二参是字面量字符串，
+  /// 不解析 `$1` 反向引用（与 JS 不同），会把 `$1` 原样写进日志。
+  static String _trimMillis(String line) => line.replaceFirstMapped(
+        _millisPattern,
+        (m) => '${m[1]}|',
+      );
 
   List<EasyRichTextPattern> _buildPatterns() {
     return [
