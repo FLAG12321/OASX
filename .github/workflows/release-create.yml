@@ -9,6 +9,9 @@ name: Release[tag]
 jobs:
   create-release:
     name: Create Release
+    # 依赖上游 runhey/OASX 的 RELEASE_TOKEN，fork 上不存在，触发即失败。
+    # 限定只在上游仓库执行；fork 用 gh release create 手动建发布。
+    if: github.repository == 'runhey/OASX'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code

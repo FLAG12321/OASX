@@ -8,6 +8,10 @@ name: Build-Release[Windows]
 
 jobs:
   build_and_package:
+    # 依赖上游 runhey/OASX 的仓库 secret（RELEASE_TOKEN / OASX_RELEASE /
+    # WINDOWS_PATH_KEY / WINDOWS_PATH_VALUES），fork 上不存在，触发即失败。
+    # 限定只在上游仓库执行；fork 走本地 flutter build windows + 手动上传 zip。
+    if: github.repository == 'runhey/OASX'
     runs-on: windows-latest
     # 配置环境
     steps:

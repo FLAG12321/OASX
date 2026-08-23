@@ -8,6 +8,9 @@ name: Build-Release[MSIX]
 
 jobs:
   build_and_package:
+    # 依赖上游 runhey/OASX 的仓库 secret（RELEASE_TOKEN / WINDOWS_PATH_* /
+    # AZURE_AD_* / SELLER_ID），fork 上不存在，触发即失败。限定只在上游仓库执行。
+    if: github.repository == 'runhey/OASX'
     runs-on: windows-latest
     # 配置环境
     steps:

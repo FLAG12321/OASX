@@ -6,6 +6,10 @@ name: Build-Release[Android]
 
 jobs:
   release:
+    # 本 workflow 依赖上游 runhey/OASX 的仓库 secret（RELEASE_TOKEN / OASX_RELEASE /
+    # KEYSTORE_* 等），fork 上不存在这些 secret，触发即失败。限定只在上游仓库执行，
+    # 避免 fork 的 Actions 页堆积无意义的失败记录。fork 走本地编译 + 手动发布 release。
+    if: github.repository == 'runhey/OASX'
     runs-on: ubuntu-latest
     # 配置环境
     steps:
