@@ -26,11 +26,14 @@ class ServerLauncher {
   }
 
   // 校验 OAS 根目录结构（原 ServerController.authenticatePath 逻辑迁移）。
+  // 刻意不检查 toolkit/Git：git 缺失时启动会走 deploy.installer 的
+  // ensure_git_ready()（deploy/git.py:121）自动下载完整版补齐，而它恰恰是
+  // installer 才装的东西——硬性要求 git 预先存在会挡住手动拷贝的残缺安装
+  // （鸡生蛋）。真正必需的是 python 与 installer 入口：有它们就能自愈。
   static bool validatePath(String root) {
     try {
       if (!Directory(root).existsSync()) return false;
       if (!File('$root/toolkit/python.exe').existsSync()) return false;
-      if (!File('$root/toolkit/Git/cmd/git.exe').existsSync()) return false;
       if (!File('$root/deploy/installer.py').existsSync()) return false;
       if (!File('$root/config/deploy.yaml').existsSync()) return false;
     } catch (_) {

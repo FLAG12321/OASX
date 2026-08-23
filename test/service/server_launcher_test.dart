@@ -11,19 +11,25 @@ import 'package:process_run/shell.dart';
 // ServerController.authenticatePath 逻辑迁移）。launch() 涉及真实 shell，
 // 不做单测，由端到端手动验证覆盖。
 void main() {
-  test('validatePath 校验 toolkit/git/installer/deploy 缺一不可', () async {
+  test('validatePath 校验 python/installer/deploy 三件套，缺 git 视为可自愈', () async {
     final root = Directory.systemTemp.createTempSync('oasx_launcher_test');
     addTearDown(() => root.deleteSync(recursive: true));
 
     // 空目录 → false
     expect(ServerLauncher.validatePath(root.path), isFalse);
 
-    // 补齐全部标记文件 → true
+    // 补齐三件套（刻意不含 toolkit/Git）→ true：git 缺失由 installer 自动下载补齐
     File('${root.path}/toolkit/python.exe').createSync(recursive: true);
-    File('${root.path}/toolkit/Git/cmd/git.exe').createSync(recursive: true);
     File('${root.path}/deploy/installer.py').createSync(recursive: true);
     File('${root.path}/config/deploy.yaml').createSync(recursive: true);
     expect(ServerLauncher.validatePath(root.path), isTrue);
+
+    // 缺 installer.py（纯源码/垃圾目录）→ false，仍然挡住
+    final root2 = Directory.systemTemp.createTempSync('oasx_launcher_test2');
+    addTearDown(() => root2.deleteSync(recursive: true));
+    File('${root2.path}/toolkit/python.exe').createSync(recursive: true);
+    File('${root2.path}/config/deploy.yaml').createSync(recursive: true);
+    expect(ServerLauncher.validatePath(root2.path), isFalse);
 
     // 不存在的根目录 → false
     expect(ServerLauncher.validatePath('${root.path}/nope'), isFalse);
