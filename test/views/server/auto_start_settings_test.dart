@@ -52,8 +52,7 @@ void main() {
     // 公共 setUp：内容区无条件渲染开机自启开关，故每个用例都需注册 fake；
     // 自启条目数据源为 AutoBootService（loadEntries 重置为存储当前值）
     Get.put<AutoStartService>(_FakeAutoStartService(), permanent: true);
-    Get.put<AutoBootService>(AutoBootService()..loadEntries(),
-        permanent: true);
+    Get.put<AutoBootService>(AutoBootService()..loadEntries(), permanent: true);
   });
 
   tearDown(() async {
@@ -65,13 +64,16 @@ void main() {
   // 中文注释：ListTile 系需要 Material 祖先；.tr 未加载翻译时回退键值（即英文文案），
   // 断言统一用 I18n 常量匹配。探测结果与脚本列表经构造参数注入
   Future<void> pumpContent(WidgetTester tester,
-      {required bool reachable, List<String> scripts = const []}) async {
+      {bool? reachable,
+      List<String> scripts = const [],
+      Future<bool> Function()? probeBackend,
+      Future<List<String>> Function()? fetchScripts}) async {
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(
         body: SingleChildScrollView(
           child: AutoStartSettingsContent(
-            probeBackend: () async => reachable,
-            fetchScripts: () async => scripts,
+            probeBackend: probeBackend ?? (() async => reachable!),
+            fetchScripts: fetchScripts ?? (() async => scripts),
           ),
         ),
       ),
@@ -80,8 +82,7 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('server 不可达时渲染启动提示、不渲染脚本多选',
-      (WidgetTester tester) async {
+  testWidgets('server 不可达时渲染启动提示、不渲染脚本多选', (WidgetTester tester) async {
     await pumpContent(tester, reachable: false);
 
     expect(find.text(I18n.autoRunScriptServerHint), findsOneWidget);
@@ -90,8 +91,24 @@ void main() {
     expect(find.byType(SwitchListTile), findsOneWidget);
   });
 
-  testWidgets('可达时渲染脚本列表，勾选持久化新格式并启用延时输入',
-      (WidgetTester tester) async {
+  testWidgets('探测异常时结束 loading 并显示不可达提示', (WidgetTester tester) async {
+    await pumpContent(tester, probeBackend: () async {
+      throw StateError('probe failed');
+    });
+
+    expect(find.byType(LinearProgressIndicator), findsNothing);
+    expect(find.text(I18n.autoRunScriptServerHint), findsOneWidget);
+  });
+
+  testWidgets('脚本拉取异常时结束 loading 并显示不可达提示', (WidgetTester tester) async {
+    await pumpContent(tester, reachable: true, fetchScripts: () async {
+      throw StateError('fetch failed');
+    });
+
+    expect(find.byType(LinearProgressIndicator), findsNothing);
+    expect(find.text(I18n.autoRunScriptServerHint), findsOneWidget);
+  });
+  testWidgets('可达时渲染脚本列表，勾选持久化新格式并启用延时输入', (WidgetTester tester) async {
     await pumpContent(tester, reachable: true, scripts: ['oas1', 'oas2']);
     expect(find.text(I18n.autoRunScriptServerHint), findsNothing);
     expect(find.byType(CheckboxListTile), findsNWidgets(2));
@@ -106,8 +123,7 @@ void main() {
     ]);
 
     // 修改延时 → 持久化延时值（key 含勾选态：已勾选为 _true）
-    await tester.enterText(
-        find.byKey(const ValueKey('delay_oas1_true')), '30');
+    await tester.enterText(find.byKey(const ValueKey('delay_oas1_true')), '30');
     await tester.pump();
     expect(autoBoot.delayOf('oas1'), 30);
 

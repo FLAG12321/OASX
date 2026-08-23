@@ -44,20 +44,33 @@ class _AutoStartSettingsContentState extends State<AutoStartSettingsContent> {
   }
 
   Future<void> _probe() async {
-    setState(() => _reachable = null);
-    final ok = await (widget.probeBackend?.call() ?? _defaultProbe());
-    if (!mounted) return;
-    if (!ok) {
-      setState(() => _reachable = false);
-      return;
-    }
-    final names =
-        await (widget.fetchScripts?.call() ?? ApiClient().getScriptList());
     if (!mounted) return;
     setState(() {
-      _reachable = true;
-      _scriptNames = names;
+      _reachable = null;
+      _scriptNames = const [];
     });
+    try {
+      final ok = await (widget.probeBackend?.call() ?? _defaultProbe());
+      if (!mounted) return;
+      if (!ok) {
+        setState(() => _reachable = false);
+        return;
+      }
+      final names =
+          await (widget.fetchScripts?.call() ?? ApiClient().getScriptList());
+      if (!mounted) return;
+      setState(() {
+        _reachable = true;
+        _scriptNames = names;
+      });
+    } catch (_) {
+      // 探测或拉取异常都要结束 loading；当前区块没有错误态，回退到不可达提示。
+      if (!mounted) return;
+      setState(() {
+        _reachable = false;
+        _scriptNames = const [];
+      });
+    }
   }
 
   @override
@@ -164,8 +177,7 @@ class _AutoStartSettingsContentState extends State<AutoStartSettingsContent> {
                   labelText: I18n.autoRunScriptDelayLabel.tr,
                   isDense: true,
                 ),
-                onChanged: (v) =>
-                    autoBoot.setDelay(name, int.tryParse(v) ?? 0),
+                onChanged: (v) => autoBoot.setDelay(name, int.tryParse(v) ?? 0),
               ),
             ),
             const SizedBox(width: 8),
