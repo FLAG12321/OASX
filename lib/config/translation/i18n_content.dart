@@ -368,8 +368,7 @@ class I18n {
       'No tasks to compare for the current metric';
   static const String statsTaskDetailHint =
       'Click a task bar above to view run details';
-  static const String statsNoTimeDetail =
-      'No time detail available for this task';
+  static const String statsNoTimeDetail = 'No time detail available for this task';
   static const String statsNoBattleRecord = 'No battle record';
   // Stats 模板文案（@key 占位符由 trParams 填充）。
   static const String statsRunDetailTitle = 'Run Details: @task';

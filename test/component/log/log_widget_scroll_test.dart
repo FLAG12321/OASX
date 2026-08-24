@@ -98,15 +98,16 @@ void main() {
 
     await _pumpLogWidget(tester, controller);
 
-    final scroll = tester.widget<ListView>(find.byType(ListView)).controller!;
+    final scroll =
+        tester.widget<ListView>(find.byType(ListView)).controller!;
     scroll.jumpTo(0);
     await tester.pump();
 
     // 中文注释：显式断言前置条件落在跳转区间（距离 > 3 倍视口），
     // 否则行数不足时用例会在动画路径上「碰巧」通过而失去意义。
     final position = scroll.position;
-    expect(
-        position.maxScrollExtent, greaterThan(position.viewportDimension * 3),
+    expect(position.maxScrollExtent,
+        greaterThan(position.viewportDimension * 3),
         reason: '距离未超过跳转阈值，需增加行数');
 
     controller.scrollLogs?.call(force: true, scrollOffset: -1);
@@ -122,7 +123,8 @@ void main() {
     // 若实现退回 animateTo，会留下运行中的 ticker 使该断言失败。
     // 前提：本用例 historyLoading 为 false，不渲染占位 spinner——它的
     // CircularProgressIndicator 是常驻 ticker，会让该计数永不为 0。
-    expect(tester.binding.transientCallbackCount, 0, reason: '长距离滚动不应启动动画');
+    expect(tester.binding.transientCallbackCount, 0,
+        reason: '长距离滚动不应启动动画');
   });
 
   // 中文注释：锁定短距离仍走平滑动画，实时日志追尾体验不退化。
@@ -134,12 +136,14 @@ void main() {
 
     await _pumpLogWidget(tester, controller);
 
-    final scroll = tester.widget<ListView>(find.byType(ListView)).controller!;
+    final scroll =
+        tester.widget<ListView>(find.byType(ListView)).controller!;
     final position = scroll.position;
     final target = position.maxScrollExtent;
     // 中文注释：显式断言前置条件，让「阈值关系」而非行数成为用例契约；
     // 行数不足或越过阈值时测试应失败而非静默通过。
-    expect(target, greaterThan(0), reason: '行数不足以产生可滚动距离，需增加行数');
+    expect(target, greaterThan(0),
+        reason: '行数不足以产生可滚动距离，需增加行数');
     expect(target, lessThanOrEqualTo(position.viewportDimension * 3),
         reason: '距离已超过跳转阈值，会走 jumpTo，需减少行数');
     scroll.jumpTo(0);
@@ -194,7 +198,8 @@ void main() {
     await _pumpLogWidget(tester, controller);
 
     expect(find.byType(ListView), findsOneWidget);
-    final scroll = tester.widget<ListView>(find.byType(ListView)).controller!;
+    final scroll =
+        tester.widget<ListView>(find.byType(ListView)).controller!;
     expect(scroll.hasClients, isTrue);
   });
 
@@ -239,8 +244,7 @@ void main() {
           home: Scaffold(
             body: SizedBox(
               height: 400,
-              child:
-                  LogWidget(controller: controller, title: '日志', child: child),
+              child: LogWidget(controller: controller, title: '日志', child: child),
             ),
           ),
         );
@@ -277,8 +281,7 @@ void main() {
           home: Scaffold(
             body: SizedBox(
               height: 400,
-              child:
-                  LogWidget(controller: controller, title: '日志', child: child),
+              child: LogWidget(controller: controller, title: '日志', child: child),
             ),
           ),
         );

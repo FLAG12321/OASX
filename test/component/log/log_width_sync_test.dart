@@ -147,7 +147,8 @@ void main() {
           RegExp(r'^(.{8}\|\d{2}:\d{2}:\d{2}\.\d)\d{2}\|'),
           (m) => '${m[1]}|',
         );
-        expect(trimmed, expectedAfterTrim, reason: '正则须命中并只截毫秒，正文不得改动');
+        expect(trimmed, expectedAfterTrim,
+            reason: '正则须命中并只截毫秒，正文不得改动');
 
         // 行首列宽：后端出 3 位毫秒时 23 列，前端截成 1 位后 21 列。
         // 级别段恒为 8 列是对齐的根本 —— CRITICAL 恰好 8 列、后面不加空格
