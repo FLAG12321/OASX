@@ -7,6 +7,14 @@ class I18n {
   static const String en_us = 'en-US';
   static const String change_theme = 'Change Theme';
   static const String change_language = 'Change Language';
+  static const String log_font = 'Log Font';
+  static const String log_font_size = 'Log Font Size';
+  static const String log_font_cascadia_code = 'CascadiaCode';
+  static const String log_font_lato_lato = 'LatoLato';
+  static const String log_font_consolas = 'Consolas';
+  static const String log_font_segoe_ui = 'Segoe UI';
+  static const String log_font_microsoft_yahei_ui = 'Microsoft YaHei UI';
+  static const String log_font_system_default = 'System Default';
   static const String project_statement = 'Project Statement';
   static const String year = 'Years';
   static const String month = 'Months';
@@ -360,7 +368,8 @@ class I18n {
       'No tasks to compare for the current metric';
   static const String statsTaskDetailHint =
       'Click a task bar above to view run details';
-  static const String statsNoTimeDetail = 'No time detail available for this task';
+  static const String statsNoTimeDetail =
+      'No time detail available for this task';
   static const String statsNoBattleRecord = 'No battle record';
   // Stats 模板文案（@key 占位符由 trParams 填充）。
   static const String statsRunDetailTitle = 'Run Details: @task';

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:oasx/controller/settings.dart';
 import 'package:oasx/service/locale_service.dart';
+import 'package:oasx/service/log_font_service.dart';
 import 'package:oasx/service/theme_service.dart';
 import 'package:styled_widget/styled_widget.dart';
 
@@ -19,6 +20,8 @@ class SettingsView extends StatelessWidget {
           child: <Widget>[
         const _ThemeWidget().paddingAll(5),
         const _LanguageWidget().paddingAll(5),
+        const _LogFontWidget().paddingAll(5),
+        const _LogFontSizeWidget().paddingAll(5),
         killServerButton(),
         _exitButton(),
       ].toColumn().alignment(Alignment.center)),
@@ -104,3 +107,73 @@ class _LanguageWidget extends StatelessWidget {
   }
 }
 
+class _LogFontWidget extends StatelessWidget {
+  const _LogFontWidget();
+
+  @override
+  Widget build(BuildContext context) {
+    final logFontService = Get.find<LogFontService>();
+
+    return Obx(() {
+      return <Widget>[
+        Text(I18n.log_font.tr).paddingOnly(bottom: 5),
+        DropdownButton<LogFontPreset>(
+          value: logFontService.preset,
+          onChanged: (preset) {
+            if (preset != null) {
+              logFontService.setPreset(preset);
+            }
+          },
+          items: LogFontPreset.values
+              .map(
+                (preset) => DropdownMenuItem(
+                  value: preset,
+                  child: Text(_labelFor(preset).tr),
+                ),
+              )
+              .toList(),
+        ).constrained(minWidth: 180),
+      ].toColumn();
+    });
+  }
+
+  String _labelFor(LogFontPreset preset) => switch (preset) {
+        LogFontPreset.cascadiaCode => I18n.log_font_cascadia_code,
+        LogFontPreset.latoLato => I18n.log_font_lato_lato,
+        LogFontPreset.consolas => I18n.log_font_consolas,
+        LogFontPreset.segoeUi => I18n.log_font_segoe_ui,
+        LogFontPreset.microsoftYaHeiUi => I18n.log_font_microsoft_yahei_ui,
+        LogFontPreset.systemDefault => I18n.log_font_system_default,
+      };
+}
+
+class _LogFontSizeWidget extends StatelessWidget {
+  const _LogFontSizeWidget();
+
+  @override
+  Widget build(BuildContext context) {
+    final logFontService = Get.find<LogFontService>();
+
+    return Obx(() {
+      return <Widget>[
+        Text(I18n.log_font_size.tr).paddingOnly(bottom: 5),
+        DropdownButton<int>(
+          value: logFontService.fontSize,
+          onChanged: (size) {
+            if (size != null) {
+              logFontService.setFontSize(size);
+            }
+          },
+          items: LogFontService.supportedFontSizes
+              .map(
+                (size) => DropdownMenuItem(
+                  value: size,
+                  child: Text('$size px'),
+                ),
+              )
+              .toList(),
+        ).constrained(minWidth: 180),
+      ].toColumn();
+    });
+  }
+}

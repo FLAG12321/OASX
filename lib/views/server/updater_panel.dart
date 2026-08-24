@@ -6,6 +6,7 @@ import 'package:oasx/api/update_info_model.dart';
 import 'package:oasx/config/global.dart';
 import 'package:oasx/config/translation/i18n_content.dart';
 import 'package:oasx/controller/server/updater_controller.dart';
+import 'package:oasx/service/log_font_service.dart';
 
 /// 更新器面板内容。
 ///
@@ -84,6 +85,51 @@ class UpdaterPanel extends StatelessWidget {
   }
 }
 
+TextStyle _technicalTextStyle(TextStyle? base, String fontFamily) =>
+    (base ?? const TextStyle()).copyWith(fontFamily: fontFamily);
+
+/// 更新器中的 SHA、分支、仓库与提交信息等技术数据。
+///
+/// 仅覆写这些数据的字体；标题、表头、按钮和状态标签继续使用更新器原有样式。
+class _TechnicalText extends StatelessWidget {
+  const _TechnicalText(
+    this.text, {
+    this.style,
+    this.prefix,
+    this.textAlign,
+  });
+
+  final String text;
+  final TextStyle? style;
+  final String? prefix;
+  final TextAlign? textAlign;
+
+  @override
+  Widget build(BuildContext context) {
+    final logFontService =
+        Get.isRegistered<LogFontService>() ? Get.find<LogFontService>() : null;
+
+    if (logFontService == null) {
+      return _build(LogFontPreset.latoLato.fontFamily);
+    }
+    return Obx(() => _build(logFontService.fontFamily));
+  }
+
+  Widget _build(String fontFamily) => Text.rich(
+        TextSpan(
+          style: style,
+          children: [
+            if (prefix != null) TextSpan(text: prefix),
+            TextSpan(
+              text: text,
+              style: _technicalTextStyle(style, fontFamily),
+            ),
+          ],
+        ),
+        textAlign: textAlign,
+      );
+}
+
 /// Repository / Branch 填写框 + 保存按钮，读写都以 deploy.yaml 为准。
 /// 初始值异步加载，加载期间保持空值可编辑，不阻塞手动更新 UI 的显示。
 class _UpdateConfigForm extends StatefulWidget {
@@ -151,19 +197,26 @@ class _UpdateConfigFormState extends State<_UpdateConfigForm> {
     // 标签与「当前版本」同款（都走 sectionTitle）；输入内容用正文字号，靠粗细区分
     final labelStyle = UpdaterPanel.sectionTitle(context);
     final inputStyle = UpdaterPanel.bodyText(context);
+    final logFontService =
+        Get.isRegistered<LogFontService>() ? Get.find<LogFontService>() : null;
     return Obx(() {
       final operationBusy = UpdaterController.ensure().isBusy;
+      final technicalInputStyle = _technicalTextStyle(
+        inputStyle,
+        logFontService?.fontFamily ?? LogFontPreset.latoLato.fontFamily,
+      );
       return Row(
         // 标签在输入框上方，三者按底边对齐，保存按钮才与输入框齐平
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Expanded(
-            child:
-                _field('Repository', _repoController, labelStyle, inputStyle),
+            child: _field(
+                'Repository', _repoController, labelStyle, technicalInputStyle),
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: _field('Branch', _branchController, labelStyle, inputStyle),
+            child: _field(
+                'Branch', _branchController, labelStyle, technicalInputStyle),
           ),
           const SizedBox(width: 8),
           TextButton(
@@ -287,11 +340,15 @@ class _UpdateLogPanelState extends State<_UpdateLogPanel> {
 
   @override
   Widget build(BuildContext context) {
+    final logFontService =
+        Get.isRegistered<LogFontService>() ? Get.find<LogFontService>() : null;
     return GetX<UpdaterController>(
       init: UpdaterController.ensure(),
       builder: (controller) {
         final status = controller.status.value;
         final logs = controller.logs;
+        final fontFamily =
+            logFontService?.fontFamily ?? LogFontPreset.latoLato.fontFamily;
         _autoScroll(logs.length);
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -314,7 +371,8 @@ class _UpdateLogPanelState extends State<_UpdateLogPanel> {
                 if (controller.step.value.isNotEmpty)
                   Expanded(
                     child: Text(controller.step.value,
-                        style: UpdaterPanel.bodyText(context),
+                        style: _technicalTextStyle(
+                            UpdaterPanel.bodyText(context), fontFamily),
                         overflow: TextOverflow.ellipsis),
                   ),
               ],
@@ -333,10 +391,12 @@ class _UpdateLogPanelState extends State<_UpdateLogPanel> {
                 itemCount: logs.length,
                 itemBuilder: (context, index) => Text(
                   logs[index],
-                  // 每行日志按内容自动着色；字体跟随全局主题（等宽），
-                  // 使阶段前缀与 pip/git 输出的列自然对齐。
+                  // 每行日志按内容自动着色，并复用用户选择的日志字体。
                   // 字号刻意不跟随面板内容放大：日志保持小字号，一屏看更多行
-                  style: TextStyle(color: _logColor(logs[index]), fontSize: 12),
+                  style: _technicalTextStyle(
+                    TextStyle(color: _logColor(logs[index]), fontSize: 12),
+                    fontFamily,
+                  ),
                 ),
               ),
             ),
@@ -405,10 +465,12 @@ class _RemoteSection extends StatelessWidget {
       Text(isUpdate ? I18n.find_oas_new_version.tr : I18n.oas_latest_version.tr,
           style: UpdaterPanel.sectionTitle(context)),
       const SizedBox(width: 20),
-      Text('${I18n.current_branch.tr}: ${data.branch}',
-              style: UpdaterPanel.sectionTitle(context),
-              textAlign: TextAlign.center)
-          .constrained(height: 26),
+      _TechnicalText(
+        data.branch ?? '—',
+        prefix: '${I18n.current_branch.tr}: ',
+        style: UpdaterPanel.sectionTitle(context),
+        textAlign: TextAlign.center,
+      ).constrained(height: 26),
     ].toRow(
         crossAxisAlignment: CrossAxisAlignment.center,
         separator: const SizedBox(width: 10));
@@ -448,13 +510,14 @@ class _RemoteSection extends StatelessWidget {
     final ok = data != null && data.length >= 4;
     final style = UpdaterPanel.bodyText(context);
     return TableRow(children: [
-      Text(ok ? sha1(data[0]) : '—', style: style).paddingAll(8),
-      Text(ok ? data[1] : '—', style: style).paddingAll(8),
-      Text(ok ? data[2] : '—', style: style).paddingAll(8),
-      Text(ok ? data[3] : '—', style: style).paddingAll(8),
+      _TechnicalText(ok ? sha1(data[0]) : '—', style: style).paddingAll(8),
+      _TechnicalText(ok ? data[1] : '—', style: style).paddingAll(8),
+      _TechnicalText(ok ? data[2] : '—', style: style).paddingAll(8),
+      _TechnicalText(ok ? data[3] : '—', style: style).paddingAll(8),
       if (differ)
-        Text(localRepo ? I18n.local_repo.tr : I18n.remote_repo.tr, style: style)
-            .paddingAll(8)
+        _TechnicalText(localRepo ? I18n.local_repo.tr : I18n.remote_repo.tr,
+                style: style)
+            .paddingAll(8),
     ]);
   }
 

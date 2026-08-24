@@ -16,6 +16,14 @@ final Map<String, String> _us_ui = {
   I18n.log_out: 'Logout',
   I18n.zh_cn: '简体中文',
   I18n.en_us: 'English',
+  I18n.log_font: 'Log Font',
+  I18n.log_font_size: 'Log Font Size',
+  I18n.log_font_cascadia_code: 'CascadiaCode',
+  I18n.log_font_lato_lato: 'LatoLato',
+  I18n.log_font_consolas: 'Consolas',
+  I18n.log_font_segoe_ui: 'Segoe UI',
+  I18n.log_font_microsoft_yahei_ui: 'Microsoft YaHei UI',
+  I18n.log_font_system_default: 'System Default',
   I18n.project_statement: 'Open Source Software',
   I18n.task_setting: 'Settings',
   I18n.notify_test_help:
@@ -42,8 +50,7 @@ final Map<String, String> _us_ui = {
   I18n.script_start_failed: 'Failed to start script',
   I18n.script_stop_failed: 'Failed to stop script',
   I18n.script_action_not_found: 'Config does not exist',
-  I18n.script_action_conflict:
-      'Config is being modified, please retry later',
+  I18n.script_action_conflict: 'Config is being modified, please retry later',
   I18n.script_action_lock_timeout: 'Config is locked, please retry later',
   I18n.script_action_server_error:
       'Script startup failed, please check the server log',

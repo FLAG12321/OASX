@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:device_preview/device_preview.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:oasx/service/locale_service.dart';
+import 'package:oasx/service/log_font_service.dart';
 import 'package:oasx/service/theme_service.dart';
 import 'package:oasx/service/websocket_service.dart';
 import 'package:oasx/service/window_service.dart';
@@ -87,6 +88,7 @@ Future<void> initService() async {
 
   await Future.wait([
     Get.putAsync(() async => LocaleService()),
+    Get.putAsync(() async => LogFontService()),
     Get.putAsync(() async => ThemeService()),
     Get.putAsync(() async => WindowService()),
   ]);

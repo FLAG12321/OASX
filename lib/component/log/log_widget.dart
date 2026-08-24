@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:easy_rich_text/easy_rich_text.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:oasx/service/log_font_service.dart';
 import 'package:styled_widget/styled_widget.dart';
 import 'log_mixin.dart';
 
@@ -364,6 +365,11 @@ class LogContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 正常应用启动时服务已在 initService 注册；保留组件独立渲染能力，
+    // 未注册的测试/嵌入场景仍按默认 LatoLato 显示。
+    final logFontService =
+        Get.isRegistered<LogFontService>() ? Get.find<LogFontService>() : null;
+
     return Card(
       margin: const EdgeInsets.fromLTRB(0, 0, 0, 10),
       child: NotificationListener<UserScrollNotification>(
@@ -372,57 +378,44 @@ class LogContent extends StatelessWidget {
           return false;
         },
         child: Obx(() {
+          final fontFamily =
+              logFontService?.fontFamily ?? LogFontPreset.latoLato.fontFamily;
+          final fontSize =
+              logFontService?.fontSize ?? LogFontService.defaultFontSize;
           final listView = ListView.builder(
             controller: scrollController,
-            // 中文注释：给出等高原型让 SliverList 用常数时间换算 offset↔index，
-            // 否则跳转/视口补偿要从头逐行累加高度（实测 500 行滚到底会构建
-            // 470 行、单帧冻结数百毫秒）。原型必须与真实行同构且命中高亮
-            // pattern：实测 bodySmall 下命中行高 22px、未命中行与普通 Text
-            // 仅 18px，取最高形态保证任何真实行不会高于原型而被裁切。
-            // 原型只用于量高不参与绘制，但仍会建语义节点，故排除以免屏幕
-            // 阅读器读出这条不存在的日志；selectable 必须与真实行保持一致，
-            // 否则渲染路径不同会改变行高。
-            //
-            // 注意：prototypeItem 让 ListView 走 SliverPrototypeExtentList，
-            // 原型高度是紧约束——真实行高于原型会被压扁裁切且无溢出告警。
-            // 因此 maxLines 必须保持 1：放宽到 2 会让长行第二行被裁掉（原型单行
-            // 时）或让列表总高翻倍越过 _scrollLogs 的 3 倍视口跳转阈值（原型两行
-            // 时），两种都有测试锁住。
+            // 日志保持虚拟化且由 SliverVariedExtentList 预知每行高度，避免跳转
+            // 到长列表末尾时从头构建所有行。普通行与分隔行的高度分别固定：后者
+            // 多出的 8px 正好对应上下各 4px 的呼吸空间，不会拉大普通日志行距。
             //
             // 长行不靠这里折行，而是在入库侧就切好：LogMixin.addLog 用
             // normalizeLogLines 把载荷按分隔线宽度（80 列）归一成多个元素，
             // 一个元素恰好一行（见 log_line_width.dart）。后端普通日志为保护
             // CJK 行首已改成整行推出，子进程 stdout 同样无宽度约束；两者都在
             // 入库时折好，所以 maxLines:1 不会吃掉内容，
-            // 「一元素一行、等高」的不变式也得以保持——视口补偿与
-            // offset↔index 换算都依赖它。
-            prototypeItem: ExcludeSemantics(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 1),
+            // 「一元素一行」不变式保持，视口补偿与 offset↔index 换算仍可按
+            // itemExtentBuilder 的确定高度执行。
+            itemCount: controller.logs.length,
+            itemExtentBuilder: (index, _) =>
+                _itemExtent(controller.logs[index], fontSize),
+            itemBuilder: (context, index) {
+              final line = controller.logs[index];
+              return Padding(
+                padding: EdgeInsets.symmetric(
+                  vertical: _isDividerLine(line)
+                      ? _dividerLineVerticalPadding
+                      : _normalLineVerticalPadding,
+                ),
                 child: EasyRichText(
-                  // 与真实行同构：级别定宽 8 列 + |时间戳| + 正文，
-                  // 时间戳同样只留一位毫秒（与 _trimMillis 处理后一致）
-                  'INFO    |00:00:00.0| prototype\n',
+                  _trimMillis(line),
                   patternList: _buildPatterns(),
                   selectable: true,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  defaultStyle: _selectStyle(context),
+                  defaultStyle: _selectStyle(context, fontFamily, fontSize),
                 ),
-              ),
-            ),
-            itemCount: controller.logs.length,
-            itemBuilder: (context, index) => Padding(
-              padding: const EdgeInsets.symmetric(vertical: 1),
-              child: EasyRichText(
-                _trimMillis(controller.logs[index]),
-                patternList: _buildPatterns(),
-                selectable: true,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                defaultStyle: _selectStyle(context),
-              ),
-            ),
+              );
+            },
           );
           // 左内边距 16 与上方标题、以及折叠面板的正文缩进对齐；
           // 其余三边保持 10，不改动纵向节奏与右侧滚动条留白
@@ -463,6 +456,24 @@ class LogContent extends StatelessWidget {
   /// 只在渲染层截断，不动 controller.logs，所以复制日志与历史加载仍保留原始精度。
   static final RegExp _millisPattern =
       RegExp(r'^(.{8}\|\d{2}:\d{2}:\d{2}\.\d)\d{2}\|');
+  static final RegExp _dividerPattern = RegExp(r'(══*══)|(──*──)');
+
+  static const _normalLineVerticalPadding = 1.0;
+  static const _dividerLineVerticalPadding = 5.0;
+
+  /// 与现有 12px 日志的实测 22px 行高保持一致；更大的字号按相同文本比例
+  /// 增长。分隔行只额外增加其本身的上下 padding，不影响普通行。
+  static double _itemExtent(String line, int fontSize) {
+    const textHeightFactor = 1.5;
+    const safetyExtent = 4.0;
+    final normalExtent = fontSize * textHeightFactor + safetyExtent;
+    return _isDividerLine(line)
+        ? normalExtent +
+            2 * (_dividerLineVerticalPadding - _normalLineVerticalPadding)
+        : normalExtent;
+  }
+
+  static bool _isDividerLine(String line) => _dividerPattern.hasMatch(line);
 
   /// 必须用 replaceFirstMapped：Dart 的 replaceFirst 第二参是字面量字符串，
   /// 不解析 `$1` 反向引用（与 JS 不同），会把 `$1` 原样写进日志。
@@ -476,7 +487,7 @@ class LogContent extends StatelessWidget {
       // 级别一律不补空格：后端 flutter_formatter 已用 %(levelname)-8s 把级别
       // 补成定宽 8 列（见 OAS module/logger.py），前端再补就变成「8 + 补数」的
       // 二次补位，让 INFO(12) > ERROR(11) > WARNING(9) > CRITICAL(8) 列宽反而不等。
-      // 等宽字体下 -8s 自身即可成列（Cascadia 所有字形同宽 0.5859em），
+      // 选择等宽预设时，-8s 自身即可成列（Cascadia 所有字形同宽 0.5859em），
       // 与 GuiRule 按 GUI_RULE_WIDTH 渲染的 RESTART 分隔线也逐列对齐。
       const EasyRichTextPattern(
         targetString: 'INFO',
@@ -532,22 +543,21 @@ class LogContent extends StatelessWidget {
     ];
   }
 
-  /// 日志正文样式。字体跟随全局主题（等宽 CascadiaCode），
-  /// prototypeItem 与真实行共用本方法，行高原型自动随字体变化保持一致。
+  /// 日志正文样式。字体仅在此局部覆盖全局主题，
+  /// 行高由 ListView 的 itemExtentBuilder 与字号同步计算。
   ///
-  /// 字号固定 12 而不是跟随主题的 bodySmall/titleSmall：日志按 80 列渲染、
-  /// 分隔线同宽（见 kLogLineWidthLimit），Cascadia 每字符宽 0.5859em，
-  /// 80 列在字号 12 下约 562px —— 1280 宽的窗口能完整装下整条分隔线，
-  /// 不必横向滚动；跟随主题的 14 需要 656px，也装得下。
-  ///
-  /// 同样刻意不跟随服务页「面板内容大一号」的调整：正文小字号才能一屏多看几行，
-  /// 且本组件被 Overview 的运行日志共用，放大会波及那一页。
-  /// 只有标题（见 TopLogPanel）跟着五个框一起放大。
-  TextStyle _selectStyle(BuildContext context) {
-    // 从主题取色与字族，只覆写字号，保证深浅色主题下前景色仍然正确
+  /// 字号与字体都只来自 LogFontService：默认 14 对齐 OASX 0.3.3 desktop 的
+  /// titleSmall；不跟随全局 ThemeData，服务页标题也不受影响。
+  TextStyle _selectStyle(
+    BuildContext context,
+    String fontFamily,
+    int fontSize,
+  ) {
+    // 从主题取色与兜底链，只覆写日志局部的字号与字族，
+    // 保证深浅色主题下前景色与中文 fallback 仍然正确。
     final base = context.mediaQuery.orientation == Orientation.portrait
         ? Theme.of(context).textTheme.bodySmall!
         : Theme.of(context).textTheme.titleSmall!;
-    return base.copyWith(fontSize: 12);
+    return base.copyWith(fontSize: fontSize.toDouble(), fontFamily: fontFamily);
   }
 }
