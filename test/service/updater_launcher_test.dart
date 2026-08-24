@@ -65,9 +65,8 @@ void main() {
       // 目录结构不全 → null
       expect(UpdaterLauncher.resolveRootPath(root.path), isNull);
 
-      // 补齐 ServerLauncher.validatePath 要求的标记文件 → 返回路径
+      // 补齐 ServerLauncher.validatePath 要求的标记文件（git 由 installer 自愈）→ 返回路径
       File('${root.path}/toolkit/python.exe').createSync(recursive: true);
-      File('${root.path}/toolkit/Git/cmd/git.exe').createSync(recursive: true);
       File('${root.path}/deploy/installer.py').createSync(recursive: true);
       File('${root.path}/deploy/update.py').createSync(recursive: true);
       File('${root.path}/config/deploy.yaml').createSync(recursive: true);
