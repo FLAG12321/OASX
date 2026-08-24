@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:oasx/component/log/log_line_width.dart';
+import 'package:oasx/service/log_font_service.dart';
 
 // 中文注释：跨仓库常量一致性门禁。
 //
@@ -165,22 +166,24 @@ void main() {
     test('日志正文字号必须让整条分隔线在窄窗口内装得下', () {
       // Cascadia 每字符宽 0.5859em（fontTools 实测，等宽含 ─ 与全角）。
       // 1280 宽窗口下日志正文可用约 1234px（实测：页面左右各 10 + Card 内
-      // 左 16 右 10）。字号 12 时 80 列约 562px，装得下；14 也只要 656px。
+      // 左 16 右 10）。即使用户选择最大字号 16，80 列也只约 750px，装得下。
       //
       // 量的是分隔线宽度（80）而不是日志行宽：分隔线就是最宽的行。
       const advance = 0.5859;
-      const fontSize = 12.0;
+      const fontSize = 16.0;
       const narrowestAvail = 1234.0;
       const needed = kLogLineWidthLimit * advance * fontSize;
       expect(needed, lessThan(narrowestAvail),
           reason: '整行需 ${needed.toStringAsFixed(0)}px，'
               '窄窗口只有 ${narrowestAvail.toStringAsFixed(0)}px，会被裁成省略号');
 
-      // 同步锁住 log_widget 里的实际取值，避免这里算得对、那边写了别的
+      // 同步锁住可选上限与 log_widget 读取服务的实现，避免这里算得对、
+      // 设置页却放出更大的字号或生产代码又写回固定字号。
+      expect(LogFontService.supportedFontSizes.last, fontSize.toInt());
       final widget =
           File('lib/component/log/log_widget.dart').readAsStringSync();
-      expect(widget.contains('base.copyWith(fontSize: 12)'), isTrue,
-          reason: '日志正文字号应为 12，与本用例的计算前提一致');
+      expect(widget.contains('fontSize: fontSize.toDouble()'), isTrue,
+          reason: '日志正文字号必须读取 LogFontService，不能重新写死');
     });
   });
 }

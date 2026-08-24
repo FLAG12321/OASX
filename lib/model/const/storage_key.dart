@@ -1,6 +1,8 @@
 enum StorageKey {
   dark,
   language,
+  logFontPreset,
+  logFontSize,
   username,
   password,
   address,
