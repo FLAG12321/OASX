@@ -26,16 +26,18 @@ class ServerLauncher {
   }
 
   // 校验 OAS 根目录结构（原 ServerController.authenticatePath 逻辑迁移）。
-  // 刻意不检查 toolkit/Git：git 缺失时启动会走 deploy.installer 的
-  // ensure_git_ready()（deploy/git.py:121）自动下载完整版补齐，而它恰恰是
-  // installer 才装的东西——硬性要求 git 预先存在会挡住手动拷贝的残缺安装
-  // （鸡生蛋）。真正必需的是 python 与 installer 入口：有它们就能自愈。
+  // 刻意不检查 toolkit/Git 与 config/deploy.yaml：git 缺失时启动会走
+  // deploy.installer 的 ensure_git_ready()（deploy/git.py:121）自动下载完整版
+  // 补齐，而它恰恰是 installer 才装的东西——硬性要求 git 预先存在会挡住
+  // 手动拷贝的残缺安装（鸡生蛋）；deploy.yaml 已不在 OAS 仓库中分发，
+  // DeployConfig 初始化时会从 deploy/template 自动生成。真正必需的是 python、
+  // installer 与 template：有它们就能自愈。
   static bool validatePath(String root) {
     try {
       if (!Directory(root).existsSync()) return false;
       if (!File('$root/toolkit/python.exe').existsSync()) return false;
       if (!File('$root/deploy/installer.py').existsSync()) return false;
-      if (!File('$root/config/deploy.yaml').existsSync()) return false;
+      if (!File('$root/deploy/template').existsSync()) return false;
     } catch (_) {
       return false;
     }
@@ -45,12 +47,22 @@ class ServerLauncher {
   // 构造只匹配当前 OAS 根目录的进程清理命令，供运行逻辑与测试共用。
   // PowerShell 读取 Win32_Process.CommandLine 后再按根目录过滤，不能使用
   // `taskkill /im python*.exe` 这种会误伤其它项目的全局匹配。
+  // 用绝对路径而非裸 `powershell`：个别机器的 PATH 不含 PowerShell 目录，
+  // 裸命令会直接「不是内部或外部命令」。不用 %SystemRoot%：process_run 的
+  // runInShell 不走 cmd 的 %VAR% 展开，硬编码 Win10/11 恒定路径最稳。
+  //
+  // 成败判定用「复查存活」而不是逐条 taskkill 退出码：OAS server 会带
+  // OCR 子进程与 multiprocessing 实例子进程，枚举顺序里父进程排第一时，
+  // `taskkill /f /t` 树杀会连带杀光全部子进程，之后循环里对已死子进程
+  // PID 的 taskkill 必然报 128「找不到进程」——那是树杀的连带效果而非
+  // 失败。逐条判退出码会把这种正常情况误报成 exit 1。树杀后复查一次
+  // 过滤条件，仍有存活才真正算失败。
   static String scopedProcessKillCommand(String root) {
     final escapedRoot = root.replaceAll("'", "''");
     return [
-      r'''powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference = 'Stop'; $root = ''',
+      r'''C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference = 'Stop'; $root = ''',
       "'$escapedRoot'",
-      r'''; $prefix = [IO.Path]::GetFullPath($root).TrimEnd('\') + '\'; $failed = $false; $processes = @(Get-CimInstance Win32_Process | Where-Object { $_.Name -in @('python.exe','pythonw.exe') -and (($_.ExecutablePath -and [IO.Path]::GetFullPath($_.ExecutablePath).StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) -or ($_.CommandLine -and $_.CommandLine.Replace('/','\').IndexOf($prefix, [StringComparison]::OrdinalIgnoreCase) -ge 0)) }); foreach ($target in $processes) { taskkill /f /t /pid $target.ProcessId | Out-Null; if ($LASTEXITCODE -ne 0) { $failed = $true } }; if ($failed) { exit 1 } else { exit 0 }"''',
+      r'''; $prefix = [IO.Path]::GetFullPath($root).TrimEnd('\') + '\'; $filter = { $_.Name -in @('python.exe','pythonw.exe') -and (($_.ExecutablePath -and [IO.Path]::GetFullPath($_.ExecutablePath).StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) -or ($_.CommandLine -and $_.CommandLine.Replace('/','\').IndexOf($prefix, [StringComparison]::OrdinalIgnoreCase) -ge 0)) }; $processes = @(Get-CimInstance Win32_Process | Where-Object $filter); foreach ($target in $processes) { taskkill /f /t /pid $target.ProcessId | Out-Null }; Start-Sleep -Milliseconds 300; $left = @(Get-CimInstance Win32_Process | Where-Object $filter); if ($left.Count -gt 0) { exit 1 } else { exit 0 }"''',
     ].join();
   }
 
@@ -93,6 +105,15 @@ class ServerLauncher {
       }
       return true;
     } on ShellException catch (e) {
+      // result 为 null 的 ShellException（'Killed by framework' / 'Script was
+      // killed'）是本类主动 kill()/dispose() 旧 shell 会话的预期产物，不是
+      // 命令失败：launch() 开头会 kill 上一个会话，ServerController.run()
+      // 替换旧 launcher 时也会 dispose。真实命令失败时 process_run 会带上
+      // 非 null 的 result（含退出码），才值得按 ERROR 对待。
+      if (e.result == null) {
+        onLog('INFO: shell 会话已终止: ${e.message}');
+        return false;
+      }
       onLog('ERROR: ${e.toString()}');
       return false;
     } catch (e) {
@@ -106,9 +127,15 @@ class ServerLauncher {
     return ServerOperationLock.instance.run(() async {
       _shell!.kill();
       if (!await _runShell('echo OAS working directory: ')) return false;
-      if (!await _runShell('pwd')) return false;
+      // cmd.exe 下 pwd 不是内置命令，靠 PATH 里的 pwd.exe（来自 Git）兜底；
+      // 全新安装时 toolkit/Git 尚未下载（installer 才下载），pwd 会 exit 1 挡住启动。
+      // 改用 cmd 内置 cd：零依赖、恒返回 0，且在 cmd 下会回显当前目录。
+      if (!await _runShell('cd')) return false;
       if (!await _runShell('echo Stop existing OAS processes')) return false;
-      if (!await _runShell(scopedProcessKillCommand(rootPath))) return false;
+      // 杀进程失败不中断启动：installer 内部有 pywin32 的进程清理作为真正的
+      // 闸门（杀不掉会 raise ExecutionError 中止安装），这里只是提前清理，
+      // 失败不阻断（实测个别机器 powershell 不可用或进程跨提权杀不掉）。
+      await _runShell(scopedProcessKillCommand(rootPath));
       if (!await _runShell('echo Align dependencies')) return false;
       if (!await _runShell('python -m deploy.installer')) return false;
       if (!await _runShell('echo Start OAS')) return false;

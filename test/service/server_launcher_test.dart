@@ -11,25 +11,34 @@ import 'package:process_run/shell.dart';
 // ServerController.authenticatePath 逻辑迁移）。launch() 涉及真实 shell，
 // 不做单测，由端到端手动验证覆盖。
 void main() {
-  test('validatePath 校验 python/installer/deploy 三件套，缺 git 视为可自愈', () async {
+  test('validatePath 校验 python/installer/template 三件套，缺 git 与 deploy.yaml 视为可自愈', () async {
     final root = Directory.systemTemp.createTempSync('oasx_launcher_test');
     addTearDown(() => root.deleteSync(recursive: true));
 
     // 空目录 → false
     expect(ServerLauncher.validatePath(root.path), isFalse);
 
-    // 补齐三件套（刻意不含 toolkit/Git）→ true：git 缺失由 installer 自动下载补齐
+    // 补齐三件套（刻意不含 toolkit/Git 与 config/deploy.yaml）→ true：
+    // git 缺失由 installer 自动下载补齐，deploy.yaml 由 DeployConfig 从 template 生成
     File('${root.path}/toolkit/python.exe').createSync(recursive: true);
     File('${root.path}/deploy/installer.py').createSync(recursive: true);
-    File('${root.path}/config/deploy.yaml').createSync(recursive: true);
+    File('${root.path}/deploy/template').createSync(recursive: true);
     expect(ServerLauncher.validatePath(root.path), isTrue);
 
     // 缺 installer.py（纯源码/垃圾目录）→ false，仍然挡住
     final root2 = Directory.systemTemp.createTempSync('oasx_launcher_test2');
     addTearDown(() => root2.deleteSync(recursive: true));
     File('${root2.path}/toolkit/python.exe').createSync(recursive: true);
-    File('${root2.path}/config/deploy.yaml').createSync(recursive: true);
+    File('${root2.path}/deploy/template').createSync(recursive: true);
     expect(ServerLauncher.validatePath(root2.path), isFalse);
+
+    // 缺 template（新 OAS 源码不再带 deploy.yaml，但 installer 自愈依赖 template）→ false
+    final root3 = Directory.systemTemp.createTempSync('oasx_launcher_test3');
+    addTearDown(() => root3.deleteSync(recursive: true));
+    File('${root3.path}/toolkit/python.exe').createSync(recursive: true);
+    File('${root3.path}/deploy/installer.py').createSync(recursive: true);
+    File('${root3.path}/config/deploy.yaml').createSync(recursive: true);
+    expect(ServerLauncher.validatePath(root3.path), isFalse);
 
     // 不存在的根目录 → false
     expect(ServerLauncher.validatePath('${root.path}/nope'), isFalse);
@@ -126,9 +135,62 @@ void main() {
     final source = File('lib/service/server_launcher.dart').readAsStringSync();
     final start = source.indexOf('Future<bool> _runShell(');
     expect(start, greaterThanOrEqualTo(0));
-    final body = source.substring(start, start + 900);
+    // 会话终止噪音降级分支加长了方法体，窗口放宽到 1400 覆盖到兜底 catch
+    final body = source.substring(start, start + 1400);
     expect(body.contains('} catch (e) {'), isTrue,
         reason: '除 ShellException 外还需一个兜底 catch');
+  });
+
+  // 中文注释：进程清理脚本的成败判定回归锚点。旧版按逐条 taskkill 退出码
+  // 聚合 $failed：父进程排第一时 /t 树杀连带杀光子进程，对已死子进程 PID 的
+  // taskkill 必然报 128，正常清理被误判 exit 1——在「失败即停」的发布版
+  // （v0.3.4）语义下直接截断启动链，其他主机表现为报错后不继续。新版必须
+  // 以「复查存活」判定，且不得退回逐条退出码。
+  test('scopedProcessKillCommand 以复查存活判定成败，不按逐条退出码聚合', () {
+    final source = File('lib/service/server_launcher.dart').readAsStringSync();
+    final start = source.indexOf('static String scopedProcessKillCommand');
+    expect(start, greaterThanOrEqualTo(0));
+    final body = source.substring(start, start + 2600);
+    // 复查存活：过滤条件收进 $filter 复用，杀完复查 $left
+    expect(body.contains(r'$filter = {'), isTrue,
+        reason: r'过滤条件应收进 $filter 变量，供枚举与复查共用');
+    expect(body.contains(r'Where-Object $filter'), isTrue,
+        reason: r'枚举与复查都应走同一 $filter');
+    expect(body.contains(r'$left.Count -gt 0'), isTrue,
+        reason: '成败以复查到的存活进程数判定');
+    // 逐条退出码聚合是误报之源，不得回退
+    expect(body.contains('LASTEXITCODE'), isFalse,
+        reason: '逐条 taskkill 退出码聚合会把树杀连带报 128 误判为失败');
+  });
+
+  // 中文注释：真实执行校验（安全路径）：对没有任何匹配进程的空临时目录执行
+  // scopedProcessKillCommand，必须正常退出 0。这验证了整段 PowerShell 的
+  // 语法（scriptblock 变量 + Where-Object + 复查判定）真实可执行——源码
+  // 断言证不了语法。刻意不用真实 OAS 根目录：那会杀掉正在运行的 server。
+  test('scopedProcessKillCommand 对零匹配目录真实执行退出码为 0', () async {
+    final emptyRoot = await Directory.systemTemp.createTemp('oasx_kill_test');
+    addTearDown(() => emptyRoot.deleteSync(recursive: true));
+    final command = ServerLauncher.scopedProcessKillCommand(emptyRoot.path);
+    final r = await Process.run('cmd', ['/c', command],
+        stdoutEncoding: const Utf8Codec(allowMalformed: true),
+        stderrEncoding: const Utf8Codec(allowMalformed: true));
+    expect(r.exitCode, 0,
+        reason:
+            '零匹配时应判成功，实际 stderr=${(r.stderr as String).trim()}');
+  });
+
+  // 中文注释：旧 launcher 被 dispose 时，在途命令的 ShellException 带 null
+  // result（'Killed by framework'）。它在 clearLog 之后异步落进新日志的顶部，
+  // 以前按 ERROR 打出来让人误以为新会话启动失败。必须按 INFO 降级。
+  test('result 为 null 的 ShellException 按会话终止噪音降级为 INFO', () {
+    final source = File('lib/service/server_launcher.dart').readAsStringSync();
+    final start = source.indexOf('on ShellException catch (e)');
+    expect(start, greaterThanOrEqualTo(0));
+    final body = source.substring(start, start + 700);
+    expect(body.contains('e.result == null'), isTrue,
+        reason: '需以 result 是否为 null 区分会话终止噪音与真实命令失败');
+    expect(body.contains("onLog('INFO: shell 会话已终止"), isTrue,
+        reason: '会话终止噪音按 INFO 记录，不得回退为 ERROR');
   });
 
   test('容错解码下真实跑 taskkill（GBK 中文输出）不抛异常', () async {
