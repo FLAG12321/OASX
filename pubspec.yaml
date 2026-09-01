@@ -3,7 +3,7 @@ description: The GUI of OAS
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: "none" # Remove this line if you wish to publish to pub.dev
-version: 0.3.4+2
+version: 0.3.5+0
 
 # The following defines the version and build number for your application.
 # A version number is three numbers separated by dots, like 1.2.43
@@ -158,7 +158,7 @@ msix_config:
   identity_name: 23723OAS.OASX
   publisher: CN=EA378061-76F2-46DD-A3E0-5361FADF914A
   languages: zh-cn
-  msix_version: 0.3.4.0
+  msix_version: 0.3.5.0
   logo_path: ./assets/images/Icon-app.png
   capabilities: internetClient, location
   store: true # 反过来
